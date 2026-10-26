@@ -1,0 +1,16 @@
+.DS_Store
+/.build/
+/.swiftpm/
+/AIMeter.app/
+*.zip
+*.xcodeproj
+xcuserdata/
+__pycache__/
+*.py[cod]
+.env
+.env.*
+*.pem
+*.p12
+*.pfx
+*.key
+.ai_meter_*.json
