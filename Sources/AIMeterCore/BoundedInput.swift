@@ -142,6 +142,40 @@ public final class BoundedInput {
         return try data(at: url)
     }
 
+    /// Supply the no-inherit ACL in the creation syscall itself. Stripping an
+    /// inherited read grant after open would leave a window for another reader
+    /// to obtain an FD before payload is written.
+    static func createPrivateFile(at url: URL) throws -> Int32 {
+        guard !url.path.utf8.contains(0), var acl = acl_init(0) else { throw Failure.file }
+        defer { acl_free(UnsafeMutableRawPointer(acl)) }
+        guard let security = filesec_init() else { throw Failure.file }
+        defer { filesec_free(security) }
+        var flags: acl_flagset_t?
+        var mode = mode_t(0o600)
+        guard acl_get_flagset_np(UnsafeMutableRawPointer(acl), &flags) == 0, let flags,
+              acl_add_flag_np(flags, ACL_FLAG_NO_INHERIT) == 0,
+              filesec_set_property(security, FILESEC_MODE, &mode) == 0,
+              filesec_set_property(security, FILESEC_ACL, &acl) == 0 else { throw Failure.file }
+        let descriptor = openx_np(url.path, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, security)
+        guard descriptor >= 0 else { throw Failure.file }
+        var accepted = false
+        defer {
+            if !accepted { Darwin.close(descriptor); Darwin.unlink(url.path) }
+        }
+        var info = stat()
+        guard fchmod(descriptor, 0o600) == 0, fstat(descriptor, &info) == 0,
+              info.st_mode & S_IFMT == S_IFREG, info.st_uid == geteuid(),
+              info.st_mode & 0o7777 == 0o600 else { throw Failure.file }
+        if let actual = acl_get_fd_np(descriptor, ACL_TYPE_EXTENDED) {
+            defer { acl_free(UnsafeMutableRawPointer(actual)) }
+            var entry: acl_entry_t?
+            guard acl_valid(actual) == 0, acl_get_entry(actual, 0, &entry) == -1,
+                  errno == EINVAL else { throw Failure.file }
+        } else if errno != ENOENT { throw Failure.file }
+        accepted = true
+        return descriptor
+    }
+
     public static func writeRegularFileAtomically(_ data: Data, to destination: URL) throws {
         var destInfo = stat()
         if Darwin.lstat(destination.path, &destInfo) == 0 {
@@ -160,14 +194,12 @@ public final class BoundedInput {
         }
 
         let tempURL = directory.appendingPathComponent(".\(destination.lastPathComponent).\(UUID().uuidString).tmp")
-        let descriptor = Darwin.open(tempURL.path, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0o600)
-        guard descriptor >= 0 else { throw Failure.file }
+        let descriptor = try createPrivateFile(at: tempURL)
         var closed = false
         defer {
             if !closed { Darwin.close(descriptor) }
             Darwin.unlink(tempURL.path)
         }
-        guard Darwin.fchmod(descriptor, 0o600) == 0 else { throw Failure.file }
 
         try data.withUnsafeBytes { rawBuffer in
             guard let baseAddress = rawBuffer.baseAddress else { return }
@@ -194,8 +226,7 @@ public final class BoundedInput {
     public func copyRegularFile(at source: URL, to destination: URL, maximum: Int) throws {
         let sourceHandle = try openRegular(source, maximum: maximum)
         defer { try? sourceHandle.close() }
-        let descriptor = Darwin.open(destination.path, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0o600)
-        guard descriptor >= 0 else { throw Failure.file }
+        let descriptor = try Self.createPrivateFile(at: destination)
         let output = FileHandle(fileDescriptor: descriptor, closeOnDealloc: true)
         defer { try? output.close() }
         var consumed = 0

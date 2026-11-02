@@ -27,6 +27,7 @@ final class KeychainHelperTests: XCTestCase {
                     self.lastQuery = query
                     if self.addStatus == errSecSuccess {
                         self.stored = query[kSecValueData as String] as? Data ?? Data()
+                        self.readStatus = errSecSuccess
                     }
                     return self.addStatus
                 },
@@ -146,6 +147,35 @@ final class KeychainHelperTests: XCTestCase {
             XCTAssertEqual(existing.calls, ["read"])
             XCTAssertEqual(existing.stored, original)
         }
+    }
+
+    func testMigrationInsertionNeverUpdatesOrDeletesAnExistingItem() {
+        let fake = FakeKeychain()
+        fake.addStatus = errSecDuplicateItem
+        XCTAssertFalse(KeychainHelper.addIfAbsent(key: "synthetic-account", value: "synthetic-legacy", operations: fake.operations))
+        XCTAssertEqual(fake.calls, ["add"])
+        XCTAssertEqual(fake.stored, Data("synthetic-original".utf8))
+        XCTAssertEqual(fake.lastQuery[kSecAttrService as String] as? String, KeychainHelper.service)
+        XCTAssertEqual(fake.lastQuery[kSecAttrAccount as String] as? String, "synthetic-account")
+        XCTAssertEqual(fake.lastQuery[kSecAttrAccessible as String] as? String, kSecAttrAccessibleAfterFirstUnlock as String)
+    }
+
+    func testRestoreRequiresReadbackToMatchTheIntendedLegacyValue() {
+        var reads = 0
+        var calls: [String] = []
+        let operations = KeychainHelper.Operations(
+            update: { _, _ in XCTFail("Migration cannot update an item"); return errSecSuccess },
+            add: { _ in calls.append("add"); return errSecSuccess },
+            delete: { _ in XCTFail("Migration cannot delete an item"); return errSecSuccess },
+            copyMatching: { _ in
+                calls.append("read")
+                reads += 1
+                return reads == 1 ? (errSecItemNotFound, nil) : (errSecSuccess, Data("synthetic-other".utf8))
+            }
+        )
+        let result = KeychainHelper.restore(key: "synthetic-account", legacyValue: "synthetic-legacy", operations: operations)
+        XCTAssertFalse(result.canClearLegacy)
+        XCTAssertEqual(calls, ["read", "add", "read"])
     }
 
 }

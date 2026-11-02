@@ -42,7 +42,7 @@ final class LaunchAtLoginManager: ObservableObject {
                 }
                 isEnabled = (SMAppService.mainApp.status == .enabled)
             } catch {
-                print("[AIMeter] Failed to update Launch at Login: \(error)")
+                print("[AIMeter] Failed to update Launch at Login.")
                 refresh()
             }
         }
@@ -59,11 +59,30 @@ final class UsageMonitor: ObservableObject {
     @AppStorage("autoShowWidgetOnLaunch") var autoShowWidgetOnLaunch: Bool = true
     @Published var hasAutoOpenedWidgetOnLaunch: Bool = false
     @AppStorage("customProviderPathsJSON") var customProviderPathsJSON: String = "{}"
-    @AppStorage("openaiAdminKey") var legacyOpenaiAdminKey: String = ""
-    @Published var openaiAdminKey: String = "" {
-        didSet {
-            KeychainHelper.save(key: "openaiAdminKey", value: openaiAdminKey)
+    // Read a legacy plaintext preference only at an enabled, explicit restore
+    // boundary; constructing the monitor must not eagerly materialize it.
+    private let credentialDefaults: UserDefaults
+    var legacyOpenaiAdminKey: String {
+        credentialDefaults.object(forKey: "openaiAdminKey") as? String ?? ""
+    }
+    @Published private(set) var openAICredential: OpenAICredentialState
+    @Published var openaiCredentialMaintenanceStatus: CredentialMaintenance.Status = .unverified
+    var openaiAdminKey: String { openAICredential.committedValue ?? "" }
+    var openaiAdminKeyDraft: String {
+        get { openAICredential.draft }
+        set {
+            // Re-enabling the same form may not trigger onAppear. Restore
+            // before accepting a new draft so a timer cannot overwrite it.
+            loadOpenAICredentialIfEnabled()
+            openAICredential.draft = newValue
         }
+    }
+    var openaiCredentialError: String? { openAICredential.error }
+    private var openAIIntegrationEnabled: Bool {
+        IntegrationSettingsObservation.isEnabled(in: credentialDefaults, key: "showOpenAISection")
+    }
+    private var geminiIntegrationEnabled: Bool {
+        IntegrationSettingsObservation.isEnabled(in: credentialDefaults, key: "showGeminiSection")
     }
 
     var customProviderPaths: [String: String] {
@@ -75,7 +94,8 @@ final class UsageMonitor: ObservableObject {
             return dict
         }
         set {
-            if let data = try? JSONEncoder().encode(newValue),
+            let normalized = newValue.mapValues { ProviderPathPreferences.stored($0) }
+            if let data = try? JSONEncoder().encode(normalized),
                let str = String(data: data, encoding: .utf8) {
                 customProviderPathsJSON = str
             }
@@ -94,10 +114,28 @@ final class UsageMonitor: ObservableObject {
     }
 
     // Built-in Provider Visibility & Period Toggles
-    @AppStorage("showOpenAISection") var showOpenAISection: Bool = true
-    @AppStorage("showGeminiSection") var showGeminiSection: Bool = true
+    var showOpenAISection: Bool {
+        get { openAIIntegrationEnabled }
+        set {
+            objectWillChange.send()
+            credentialDefaults.set(newValue, forKey: "showOpenAISection")
+            invalidateLocalCollection()
+            if !newValue { stopOpenAIIntegration() }
+        }
+    }
+    var showGeminiSection: Bool {
+        get { geminiIntegrationEnabled }
+        set {
+            objectWillChange.send()
+            credentialDefaults.set(newValue, forKey: "showGeminiSection")
+            invalidateLocalCollection()
+            if !newValue { stopGeminiIntegration() }
+        }
+    }
     @AppStorage("showOpenAIInMenuBar") var showOpenAIInMenuBar: Bool = true
     @AppStorage("showGeminiInMenuBar") var showGeminiInMenuBar: Bool = true
+    @AppStorage("showAntigravitySection") var showAntigravitySection: Bool = false
+    @AppStorage("showAntigravityInMenuBar") var showAntigravityInMenuBar: Bool = true
     @AppStorage("openaiEnabledPeriodsCSV") var openaiEnabledPeriodsCSV: String = "5h,7d,30d"
     @AppStorage("geminiEnabledPeriodsCSV") var geminiEnabledPeriodsCSV: String = "5h,1d,7d,30d"
 
@@ -110,7 +148,9 @@ final class UsageMonitor: ObservableObject {
     @AppStorage("openaiBudgetUSD") var openaiBudgetUSD: Double = 600.0
 
     // Gemini Token Limits per Period
-    @AppStorage("gcpProjectId") var gcpProjectId: String = ""
+    @AppStorage("gcpProjectId") var gcpProjectId: String = "" {
+        didSet { if oldValue != gcpProjectId { stopGeminiIntegration() } }
+    }
     @AppStorage("geminiTokenLimit2h") var geminiTokenLimit2h: Int = 750_000
     @AppStorage("geminiTokenLimit5h") var geminiTokenLimit5h: Int = 1_500_000
     @AppStorage("geminiTokenLimitDaily") var geminiTokenLimitDaily: Int = 4_000_000
@@ -122,6 +162,9 @@ final class UsageMonitor: ObservableObject {
     @AppStorage("customSubscriptionsJSON") var customSubscriptionsJSON: String = "[]"
     @Published var customSubscriptions: [CustomSubscriptionConfig] = [] {
         didSet {
+            if Self.localIDs(in: oldValue) != Self.localIDs(in: customSubscriptions) {
+                invalidateLocalCollection()
+            }
             saveCustomSubscriptions()
         }
     }
@@ -132,7 +175,13 @@ final class UsageMonitor: ObservableObject {
     @AppStorage("menuBarPeriodMode") var menuBarPeriodMode: String = "min"
     @AppStorage("menuBarDisplayMode") var menuBarDisplayMode: String = "smart"
     @AppStorage("isDetailedView") var isDetailedView: Bool = false
-    @AppStorage("showUsageAmounts") var showUsageAmounts: Bool = false
+    @AppStorage("showUsageAmounts") private var storedShowUsageAmounts: Bool = false
+    var showUsageAmounts: Bool {
+        get { storedShowUsageAmounts }
+        set { _ = setUsageAmountVisibility(newValue) }
+    }
+    @Published private(set) var widgetAmountChangePending = false
+    private var requestedUsageAmounts: Bool?
     @AppStorage("isWidgetPinned") var isWidgetPinned: Bool = true
     @Published var isDesktopWidgetOpen: Bool = false
 
@@ -155,6 +204,8 @@ final class UsageMonitor: ObservableObject {
     @Published var geminiUsedTokens: Int = 0
     @Published var geminiCostUSD: Double = 0.0
     @Published var geminiStatus: String = "実ログ"
+    @Published var antigravityQuota: AntigravityQuotaSnapshot?
+    @Published var antigravityStatus: String = "Antigravityを起動してログイン後、更新してください"
 
     @Published var lastUpdated: Date?
     @Published var isRefreshing: Bool = false
@@ -164,23 +215,43 @@ final class UsageMonitor: ObservableObject {
     private var hasUsageSnapshot = false
     private var widgetUpdatedAt: Date?
     @Published var widgetSharingError: String?
+    @Published private(set) var temporaryDataCleanupError: String?
     private var timer: Timer?
     private var wakeObserver: NSObjectProtocol?
-    private let urlSession: URLSession
+    private let apiClient: BoundedAPIClient
+    private let gcloudTokenProvider: ((APIReadBudget, IntegrationPermit) async -> String?)?
+    private var openAITask: Task<Void, Never>?
+    private var geminiTask: Task<Void, Never>?
+    private var openAIPermit: IntegrationPermit?
+    private var geminiPermit: IntegrationPermit?
+    private let openAIPermitSlot = IntegrationPermitSlot()
+    private let geminiPermitSlot = IntegrationPermitSlot()
+    private var integrationSettingsObservation: IntegrationSettingsObservation?
     private var isLoadingSubscriptions: Bool = false
+    private let automaticallyPublishSnapshots: Bool
+    private let localCollector: ((Set<String>, IntegrationPermit) async throws -> LocalUsageData)?
+    private var localCollectionTask: Task<LocalUsageData, Error>?
+    private var localCollectionPermit: IntegrationPermit?
+    private let localCollectionPermitSlot = IntegrationPermitSlot()
+    private var localCollectionGeneration = UUID()
+    private var refreshAfterPolicyChange = false
 
-    init(defaults: UserDefaults = .standard, startMonitoring: Bool = true) {
+    init(defaults: UserDefaults = .standard, startMonitoring: Bool = true,
+         apiClient: BoundedAPIClient = BoundedAPIClient(),
+         keychainOperations: KeychainHelper.Operations = .live,
+         gcloudTokenProvider: ((APIReadBudget, IntegrationPermit) async -> String?)? = nil,
+         localCollector: ((Set<String>, IntegrationPermit) async throws -> LocalUsageData)? = nil) {
         _didCalibrateRealLimitsV1 = AppStorage(wrappedValue: false, "didCalibrateRealLimitsV1", store: defaults)
         _didAutoSeedLocalProvidersV2 = AppStorage(wrappedValue: false, "didAutoSeedLocalProvidersV2", store: defaults)
         _didMigrateHonestCostsV3 = AppStorage(wrappedValue: false, "didMigrateHonestCostsV3", store: defaults)
         _hasCompletedSetupWizard = AppStorage(wrappedValue: true, "hasCompletedSetupWizard", store: defaults)
         _autoShowWidgetOnLaunch = AppStorage(wrappedValue: true, "autoShowWidgetOnLaunch", store: defaults)
         _customProviderPathsJSON = AppStorage(wrappedValue: "{}", "customProviderPathsJSON", store: defaults)
-        _legacyOpenaiAdminKey = AppStorage(wrappedValue: "", "openaiAdminKey", store: defaults)
-        _showOpenAISection = AppStorage(wrappedValue: true, "showOpenAISection", store: defaults)
-        _showGeminiSection = AppStorage(wrappedValue: true, "showGeminiSection", store: defaults)
+        self.credentialDefaults = defaults
         _showOpenAIInMenuBar = AppStorage(wrappedValue: true, "showOpenAIInMenuBar", store: defaults)
         _showGeminiInMenuBar = AppStorage(wrappedValue: true, "showGeminiInMenuBar", store: defaults)
+        _showAntigravitySection = AppStorage(wrappedValue: false, "showAntigravitySection", store: defaults)
+        _showAntigravityInMenuBar = AppStorage(wrappedValue: true, "showAntigravityInMenuBar", store: defaults)
         _openaiEnabledPeriodsCSV = AppStorage(wrappedValue: "5h,7d,30d", "openaiEnabledPeriodsCSV", store: defaults)
         _geminiEnabledPeriodsCSV = AppStorage(wrappedValue: "5h,1d,7d,30d", "geminiEnabledPeriodsCSV", store: defaults)
         _openaiTokenLimit2h = AppStorage(wrappedValue: 20_000_000, "openaiTokenLimit2h", store: defaults)
@@ -200,17 +271,32 @@ final class UsageMonitor: ObservableObject {
         _menuBarPeriodMode = AppStorage(wrappedValue: "min", "menuBarPeriodMode", store: defaults)
         _menuBarDisplayMode = AppStorage(wrappedValue: "smart", "menuBarDisplayMode", store: defaults)
         _isDetailedView = AppStorage(wrappedValue: false, "isDetailedView", store: defaults)
-        _showUsageAmounts = AppStorage(wrappedValue: false, "showUsageAmounts", store: defaults)
+        _storedShowUsageAmounts = AppStorage(wrappedValue: false, "showUsageAmounts", store: defaults)
         _isWidgetPinned = AppStorage(wrappedValue: true, "isWidgetPinned", store: defaults)
-        let config = URLSessionConfiguration.ephemeral
-        config.timeoutIntervalForRequest = 15.0
-        config.timeoutIntervalForResource = 30.0
-        self.urlSession = URLSession(configuration: config)
+        self.apiClient = apiClient
+        self.gcloudTokenProvider = gcloudTokenProvider
+        self.localCollector = localCollector
+        self.automaticallyPublishSnapshots = startMonitoring
+        self.openAICredential = OpenAICredentialState(operations: keychainOperations)
+        self.integrationSettingsObservation = IntegrationSettingsObservation(
+            defaults: defaults, openAI: openAIPermitSlot, gemini: geminiPermitSlot,
+            local: localCollectionPermitSlot
+        ) { [weak self] key, enabled in
+            if Thread.isMainThread {
+                MainActor.assumeIsolated { self?.integrationSettingChanged(key, enabled: enabled) }
+            } else {
+                Task { @MainActor [weak self] in self?.integrationSettingChanged(key, enabled: enabled) }
+            }
+        }
         guard startMonitoring else { return }
 
-        let restoredKey = KeychainHelper.restore(key: "openaiAdminKey", legacyValue: legacyOpenaiAdminKey)
-        if let value = restoredKey.value { self.openaiAdminKey = value }
-        if restoredKey.canClearLegacy { legacyOpenaiAdminKey = "" }
+        cleanupTemporarySnapshots()
+
+        let paths = customProviderPaths
+        let minimizedPaths = paths.mapValues { ProviderPathPreferences.stored($0) }
+        if paths != minimizedPaths { customProviderPaths = minimizedPaths }
+
+        loadOpenAICredentialIfEnabled()
 
         if !didCalibrateRealLimitsV1 {
             if openaiTokenLimit == 5_000_000 { openaiTokenLimit = 800_000_000 }
@@ -231,6 +317,7 @@ final class UsageMonitor: ObservableObject {
         sanitizeSettings()
         restoreLocalSnapshot()
         observeWidgetSettings()
+        publishWidgetSnapshot()
 
         Task {
             await refresh()
@@ -386,7 +473,7 @@ final class UsageMonitor: ObservableObject {
                 resetTimestamp: openaiResetAt?.monthly
             )
         ]
-        let filtered = all.filter { isBuiltInPeriodEnabled(csv: openaiEnabledPeriodsCSV, period: $0.period) }
+        let filtered = all.filter { $0.period.map { isBuiltInPeriodEnabled(csv: openaiEnabledPeriodsCSV, period: $0) } ?? false }
         return filtered.isEmpty ? all : filtered
     }
 
@@ -398,7 +485,7 @@ final class UsageMonitor: ObservableObject {
             PeriodUsageMetric(period: .weekly, usedTokens: geminiUsedWeekly, limitTokens: geminiTokenLimitWeekly, requiresOfficialQuota: true),
             PeriodUsageMetric(period: .monthly, usedTokens: geminiUsedTokens, limitTokens: geminiTokenLimit, requiresOfficialQuota: true)
         ]
-        let filtered = all.filter { isBuiltInPeriodEnabled(csv: geminiEnabledPeriodsCSV, period: $0.period) }
+        let filtered = all.filter { $0.period.map { isBuiltInPeriodEnabled(csv: geminiEnabledPeriodsCSV, period: $0) } ?? false }
         return filtered.isEmpty ? all : filtered
     }
 
@@ -448,7 +535,7 @@ final class UsageMonitor: ObservableObject {
                 resetTimestamp: live?.resetAtByPeriod?.monthly
             )
         ]
-        let filtered = all.filter { sub.isPeriodEnabled($0.period) }
+        let filtered = all.filter { $0.period.map { sub.isPeriodEnabled($0) } ?? false }
         return filtered.isEmpty ? [all.last!] : filtered
     }
 
@@ -476,9 +563,11 @@ final class UsageMonitor: ObservableObject {
             return metrics.filter(\.isRemainingAvailable).min(by: { $0.remainingRatio < $1.remainingRatio })
         }
         if let period = LimitPeriod(rawValue: menuBarPeriodMode),
-           let matched = metrics.first(where: { $0.period == period }) {
-            return matched.isRemainingAvailable ? matched : nil
+           metrics.contains(where: { $0.period == period }) {
+            return metrics.filter { $0.period == period && $0.isRemainingAvailable }
+                .min(by: { $0.remainingRatio < $1.remainingRatio })
         }
+        if menuBarPeriodMode != "min", metrics.allSatisfy(\.isQuotaOnly) { return nil }
         return metrics.filter(\.isRemainingAvailable).min(by: { $0.remainingRatio < $1.remainingRatio })
     }
 
@@ -512,6 +601,12 @@ final class UsageMonitor: ObservableObject {
                 ))
             }
         }
+        if showAntigravitySection && showAntigravityInMenuBar,
+           let metric = activeMetric(for: antigravityMetrics) {
+            list.append(.init(id: "antigravity", name: "Antigravity", shortName: "AG", iconName: "sparkles",
+                              remainingPercent: metric.remainingPercent, remainingRatio: metric.remainingRatio,
+                              bottleneckPeriod: metric.period, remainingSource: metric.remainingSource))
+        }
         for sub in customSubscriptions where sub.isEnabled && sub.showInMenuBar {
             let m = metrics(for: sub)
             if let minMetric = m.filter(\.isRemainingAvailable).min(by: { $0.remainingRatio < $1.remainingRatio }) {
@@ -535,6 +630,7 @@ final class UsageMonitor: ObservableObject {
         var services: [(String, [PeriodUsageMetric])] = []
         if showOpenAISection && showOpenAIInMenuBar { services.append(("GPT", openaiMetrics)) }
         if showGeminiSection && showGeminiInMenuBar { services.append(("Gem", geminiMetrics)) }
+        if showAntigravitySection && showAntigravityInMenuBar { services.append(("AG", antigravityMetrics)) }
         for sub in customSubscriptions where sub.isEnabled && sub.showInMenuBar {
             services.append((sub.shortName, metrics(for: sub)))
         }
@@ -574,27 +670,30 @@ final class UsageMonitor: ObservableObject {
         collectionError = nil
         sanitizeSettings()
         defer {
-            if collectionError == nil {
+            if collectionError == nil && !refreshAfterPolicyChange {
                 lastUpdated = Date()
                 widgetUpdatedAt = lastUpdated
             }
             isRefreshing = false
             publishWidgetSnapshot()
+            if refreshAfterPolicyChange {
+                refreshAfterPolicyChange = false
+                if automaticallyPublishSnapshots { Task { await self.refresh() } }
+            }
         }
 
         let error = await RefreshSequence.run(local: {
-            try await runLocalCollectorScript()
-            applyLocalSnapshot(loadLocalJSON())
+            applyLocalSnapshot(try await runLocalCollectorScript())
         }, remote: {
             await refreshConfiguredAPIs()
         })
-        if let error {
-            collectionError = "収集エラー: \(error.localizedDescription)"
+        if let error, !(error is CancellationError) {
+            collectionError = "利用状況を更新できませんでした。設定とログの場所を確認して再試行してください"
         }
     }
 
     /// Both the floating window and WidgetKit use these exact, resolved metrics.
-    func widgetSnapshot() -> AIMeterWidgetSnapshot {
+    func widgetSnapshot(showUsageAmounts amountOverride: Bool? = nil) -> AIMeterWidgetSnapshot {
         var services: [WidgetServiceItem] = []
         if showOpenAISection, let item = WidgetServiceItem.fromMetrics(
             id: "openai", name: "OpenAI Codex", shortName: "OAI", iconName: "brain.head.profile",
@@ -604,6 +703,10 @@ final class UsageMonitor: ObservableObject {
             id: "gemini", name: "Gemini", shortName: "Gem", iconName: "sparkle",
             unit: "tokens", metrics: geminiMetrics
         ) { services.append(item) }
+        if showAntigravitySection, let item = WidgetServiceItem.fromMetrics(
+            id: "antigravity", name: "Antigravity", shortName: "AG", iconName: "sparkles",
+            unit: "", metrics: antigravityMetrics
+        ) { services.append(item) }
         for sub in customSubscriptions where sub.isEnabled {
             if let item = WidgetServiceItem.fromMetrics(
                 id: sub.id, name: sub.name, shortName: sub.shortName, iconName: sub.iconName,
@@ -612,7 +715,25 @@ final class UsageMonitor: ObservableObject {
         }
         return .make(services: services, totalCostUSD: totalCostUSD,
                      updatedAt: widgetUpdatedAt, hasData: hasUsageSnapshot,
-                     updateFailed: collectionError != nil, showUsageAmounts: showUsageAmounts)
+                     updateFailed: collectionError != nil, showUsageAmounts: amountOverride ?? showUsageAmounts)
+    }
+
+    func characterHighlight(at date: Date = Date()) -> UsageHighlight {
+        var services: [HighlightService] = []
+        if showOpenAISection {
+            services.append(.init(id: "openai", name: "Codex", metrics: openaiMetrics))
+        }
+        if showGeminiSection {
+            services.append(.init(id: "gemini", name: "Gemini", metrics: geminiMetrics))
+        }
+        if showAntigravitySection {
+            services.append(.init(id: "antigravity", name: "Antigravity", metrics: antigravityMetrics))
+        }
+        for sub in customSubscriptions where sub.isEnabled {
+            services.append(.init(id: sub.id, name: sub.name, metrics: metrics(for: sub)))
+        }
+        return .resolve(services: services, hasData: hasUsageSnapshot, updatedAt: widgetUpdatedAt,
+                        isRefreshing: isRefreshing, updateFailed: collectionError != nil, now: date)
     }
 
     func observeWidgetSettings(to customURL: URL? = nil) {
@@ -625,12 +746,50 @@ final class UsageMonitor: ObservableObject {
     }
 
     func publishWidgetSnapshot(to customURL: URL? = nil) {
+        // Preview/test monitors can publish only to an explicitly supplied
+        // synthetic destination, including refresh and policy-retry paths.
+        guard automaticallyPublishSnapshots || customURL != nil else { return }
         do {
-            try SharedStore.saveWidgetSnapshot(widgetSnapshot(), to: customURL)
+            try SharedStore.saveWidgetSnapshot(widgetSnapshot(showUsageAmounts: requestedUsageAmounts), to: customURL)
+            if let requested = requestedUsageAmounts {
+                storedShowUsageAmounts = requested
+                requestedUsageAmounts = nil
+            }
+            widgetAmountChangePending = false
             widgetSharingError = nil
             if customURL == nil { SharedStore.reloadWidgetTimelines() }
         } catch {
-            widgetSharingError = "Widgetの表示情報を保存できませんでした。更新を再試行してください"
+            widgetSharingError = widgetAmountChangePending
+                ? "表示設定は未適用です。Widgetの保存情報を更新できませんでした。更新を再試行してください"
+                : "Widgetの表示情報を保存できませんでした。更新を再試行してください"
+        }
+    }
+
+    @discardableResult
+    func setUsageAmountVisibility(_ enabled: Bool, to customURL: URL? = nil) -> Bool {
+        objectWillChange.send()
+        requestedUsageAmounts = enabled
+        widgetAmountChangePending = true
+        // Non-monitoring test/preview instances never touch a real snapshot.
+        if !automaticallyPublishSnapshots && customURL == nil {
+            storedShowUsageAmounts = enabled
+            requestedUsageAmounts = nil
+            widgetAmountChangePending = false
+            return true
+        }
+        publishWidgetSnapshot(to: customURL)
+        return !widgetAmountChangePending
+    }
+
+    func cleanupTemporarySnapshots() {
+        Task {
+            let worker = Task.detached(priority: .utility) { try PrivateSnapshotManager.cleanup() }
+            do {
+                _ = try await worker.value
+                temporaryDataCleanupError = nil
+            } catch {
+                temporaryDataCleanupError = "以前の一時作業データを安全に回収できませんでした。元のAIログは変更していません。"
+            }
         }
     }
 
@@ -665,7 +824,13 @@ final class UsageMonitor: ObservableObject {
             geminiUsed2h = max(0, localData.geminiUsedByPeriod?.twoHours ?? 0)
             geminiCostUSD = max(0.0, localData.geminiCostUSD ?? 0.0)
 
-            customProviderLiveUsage = localData.providers ?? [:]
+            customProviderLiveUsage = Dictionary(uniqueKeysWithValues: (localData.providers ?? [:]).map { id, usage in
+                var safe = usage
+                if safe.status != nil {
+                    safe.status = LocalUsageCollector.safePlan(safe.status, provider: LocalUsageCollector.baseProviderID(id))
+                }
+                return (id, safe)
+            })
             detectedProviderIds = localData.detectedProviders ?? []
 
             // Automatically seed and clean up detected local accounts on first V2/V3 run
@@ -697,14 +862,15 @@ final class UsageMonitor: ObservableObject {
                     cleaned.append(item)
                 }
                 customSubscriptions = cleaned
-                autoAddDetectedSubscriptions()
+                // Service discovery is an explicit setup action. Upgrading a
+                // cache must not enable additional sources without that action.
                 didAutoSeedLocalProvidersV2 = true
                 didMigrateHonestCostsV3 = true
                 hasCompletedSetupWizard = true
             }
 
             if let plan = localData.openaiPlanType, !plan.isEmpty {
-                openaiStatus = plan
+                openaiStatus = LocalUsageCollector.safePlan(plan, provider: "openai")
             } else {
                 openaiStatus = "実ログ"
             }
@@ -736,21 +902,178 @@ final class UsageMonitor: ObservableObject {
 
     }
 
-    private func refreshConfiguredAPIs() async {
-        let trimmedOpenAIKey = openaiAdminKey.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !trimmedOpenAIKey.isEmpty {
-            await fetchOpenAIUsage(apiKey: trimmedOpenAIKey)
-        }
-
-        let trimmedProjectId = gcpProjectId.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !trimmedProjectId.isEmpty {
-            await fetchGeminiUsage(projectId: trimmedProjectId)
-        }
+    func loadOpenAICredentialIfEnabled() {
+        guard openAIIntegrationEnabled, !openAICredential.isLoaded else { return }
+        if openAICredential.load(legacyValue: legacyOpenaiAdminKey) { _ = removeLegacyCredentialPreference() }
     }
 
-    private func runLocalCollectorScript() async throws {
-        // Collect natively in Swift with zero external Python dependency
-        try await LocalUsageCollector.collectAndSave(customPaths: customProviderPaths)
+    func retryOpenAICredentialLoad() {
+        guard openAIIntegrationEnabled else { return }
+        stopOpenAIRequests()
+        if openAICredential.load(legacyValue: legacyOpenaiAdminKey) { _ = removeLegacyCredentialPreference() }
+    }
+
+    @discardableResult
+    func saveOpenAICredential() -> Bool {
+        guard openAIIntegrationEnabled else { return false }
+        stopOpenAIRequests()
+        guard openAICredential.save() else { return false }
+        return removeLegacyCredentialPreference()
+    }
+
+    func migrateLegacyOpenAICredential() {
+        stopOpenAIRequests()
+        let result = openAICredential.migrateLegacy(legacyValue: legacyOpenaiAdminKey)
+        finishCredentialMaintenance(result)
+    }
+
+    func deleteStoredOpenAICredential() {
+        stopOpenAIRequests()
+        finishCredentialMaintenance(openAICredential.deleteStored())
+    }
+
+    private func finishCredentialMaintenance(_ result: CredentialMaintenance.Result) {
+        guard result.canClearLegacy else {
+            openaiCredentialMaintenanceStatus = result.status
+            return
+        }
+        openaiCredentialMaintenanceStatus = result.confirmingLegacyRemoval(
+            removeLegacyCredentialPreference()).status
+    }
+
+    private func removeLegacyCredentialPreference() -> Bool {
+        credentialDefaults.removeObject(forKey: "openaiAdminKey")
+        let removed = credentialDefaults.object(forKey: "openaiAdminKey") == nil
+        openaiCredentialMaintenanceStatus = removed ? .legacyRemovalConfirmed : .legacyRemovalPending
+        return removed
+    }
+
+    private func stopOpenAIRequests() {
+        openAIPermitSlot.revoke()
+        openAIPermit?.revoke(); openAITask?.cancel()
+        openAIPermit = nil; openAITask = nil
+    }
+
+    private func stopOpenAIIntegration() {
+        stopOpenAIRequests()
+        openAICredential.forget()
+    }
+
+    private func stopGeminiIntegration() {
+        geminiPermitSlot.revoke()
+        geminiPermit?.revoke(); geminiTask?.cancel()
+        geminiPermit = nil; geminiTask = nil
+    }
+
+    private func integrationSettingChanged(_ key: String, enabled: Bool?) {
+        objectWillChange.send()
+        if key != "gcpProjectId" { invalidateLocalCollection() }
+        if key == "showOpenAISection" {
+            stopOpenAIRequests()
+            // Use the authoritative typed value for the permission transition.
+            // A delayed background notification must not erase a newer draft
+            // after a subsequent enable transition.
+            if enabled == false,
+               !IntegrationSettingsObservation.isEnabled(in: credentialDefaults, key: key) { openAICredential.forget() }
+        } else { stopGeminiIntegration() }
+    }
+
+    private func checkOpenAI(_ permit: IntegrationPermit) throws {
+        guard openAIIntegrationEnabled, openAIPermit === permit else { throw CancellationError() }
+        try permit.check()
+    }
+
+    private func checkGemini(_ permit: IntegrationPermit) throws {
+        guard geminiIntegrationEnabled, geminiPermit === permit else { throw CancellationError() }
+        try permit.check()
+    }
+
+    // Initial, timer, wake and manual refresh all enter this same policy.
+    func refreshConfiguredAPIs() async {
+        await refreshAntigravityQuota()
+        guard !Task.isCancelled else { return }
+        let budget = APIReadBudget()
+        if openAIIntegrationEnabled {
+            loadOpenAICredentialIfEnabled()
+            let key = openaiAdminKey.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !key.isEmpty {
+                stopOpenAIRequests()
+                let permit = IntegrationPermit()
+                openAIPermit = permit
+                openAIPermitSlot.install(permit)
+                let task = Task { await self.fetchOpenAIUsage(apiKey: key, budget: budget, permit: permit) }
+                openAITask = task
+                await withTaskCancellationHandler { await task.value }
+                    onCancel: { permit.revoke(); task.cancel() }
+                if openAIPermit === permit { stopOpenAIRequests() }
+            }
+        } else { stopOpenAIIntegration() }
+        guard !Task.isCancelled else { return }
+        if geminiIntegrationEnabled {
+            let project = (credentialDefaults.object(forKey: "gcpProjectId") as? String ?? "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            if UsageParser.isValidGCPProjectReference(project) {
+                stopGeminiIntegration()
+                let permit = IntegrationPermit()
+                geminiPermit = permit
+                geminiPermitSlot.install(permit)
+                let task = Task { await self.fetchGeminiUsage(projectId: project, budget: budget, permit: permit) }
+                geminiTask = task
+                await withTaskCancellationHandler { await task.value }
+                    onCancel: { permit.revoke(); task.cancel() }
+                if geminiPermit === permit { stopGeminiIntegration() }
+            }
+        } else { stopGeminiIntegration() }
+    }
+
+    static func localIDs(in subscriptions: [CustomSubscriptionConfig]) -> Set<String> {
+        Set(subscriptions.filter(\.isEnabled).map { LocalUsageCollector.baseProviderID($0.id) })
+    }
+
+    var enabledLocalProviderIDs: Set<String> {
+        var ids = Self.localIDs(in: customSubscriptions)
+        if showOpenAISection { ids.insert("openai") }
+        if showGeminiSection { ids.insert("gemini") }
+        return ids
+    }
+
+    private func invalidateLocalCollection() {
+        localCollectionPermitSlot.revoke()
+        localCollectionPermit?.revoke()
+        localCollectionTask?.cancel()
+        localCollectionGeneration = UUID()
+        if isRefreshing { refreshAfterPolicyChange = true }
+    }
+
+    private func runLocalCollectorScript() async throws -> LocalUsageData {
+        let generation = UUID()
+        localCollectionGeneration = generation
+        let ids = enabledLocalProviderIDs
+        let permit = IntegrationPermit()
+        localCollectionPermit = permit
+        localCollectionPermitSlot.install(permit)
+        let paths = customProviderPaths
+        let injected = localCollector
+        let task = Task {
+            if let injected { return try await injected(ids, permit) }
+            return try await LocalUsageCollector.collectAndSave(customPaths: paths,
+                enabledProviderIDs: ids, commitPermit: permit)
+        }
+        localCollectionTask = task
+        defer {
+            if localCollectionGeneration == generation {
+                localCollectionTask = nil
+                localCollectionPermit = nil
+            }
+        }
+        let result = try await withTaskCancellationHandler {
+            try await task.value
+        } onCancel: { permit.revoke(); task.cancel() }
+        guard generation == localCollectionGeneration, ids == enabledLocalProviderIDs else {
+            throw CancellationError()
+        }
+        try permit.check()
+        return result
     }
 
     func loadLocalJSON(from customURL: URL? = nil) -> LocalUsageData? {
@@ -758,7 +1081,7 @@ final class UsageMonitor: ObservableObject {
         return SharedStore.loadLocalUsageData(from: url)
     }
 
-    private func fetchOpenAIUsage(apiKey: String) async {
+    private func fetchOpenAIUsage(apiKey: String, budget: APIReadBudget, permit: IntegrationPermit) async {
         let now = Date()
         let monthStart = UsageParser.startTimestamp(for: .monthly, now: now)
         let weekStart = UsageParser.startTimestamp(for: .weekly, now: now)
@@ -769,13 +1092,17 @@ final class UsageMonitor: ObservableObject {
         let queryStart = min(monthStart, weekStart)
 
         do {
+            try checkOpenAI(permit)
             let dailyBuckets = try await fetchPaginatedOpenAIBuckets(
                 apiKey: apiKey,
                 startTime: queryStart,
                 bucketWidth: "1d",
-                limit: 31
+                limit: 31,
+                budget: budget,
+                permit: permit
             )
 
+            try checkOpenAI(permit)
             let monthTotal = try UsageParser.totalTokens(in: dailyBuckets, since: monthStart)
             let weekTotal = try UsageParser.totalTokens(in: dailyBuckets, since: weekStart)
             let dayTotal = try UsageParser.totalTokens(in: dailyBuckets, since: dayStart)
@@ -787,17 +1114,22 @@ final class UsageMonitor: ObservableObject {
                 apiKey: apiKey,
                 startTime: fiveHoursStart,
                 bucketWidth: "1h",
-                limit: 6
+                limit: 6,
+                budget: budget,
+                permit: permit
             ) {
+                try checkOpenAI(permit)
                 let fiveHourTotal = try UsageParser.totalTokens(in: hourlyBuckets)
                 let twoHourTotal = try UsageParser.totalTokens(in: hourlyBuckets, since: twoHoursStart)
                 self.openaiUsed5h = fiveHourTotal
                 self.openaiUsed2h = twoHourTotal
             }
 
-            if let totalCost = try? await fetchPaginatedOpenAICosts(apiKey: apiKey, startTime: monthStart) {
+            if let totalCost = try? await fetchPaginatedOpenAICosts(apiKey: apiKey, startTime: monthStart, budget: budget, permit: permit) {
+                try checkOpenAI(permit)
                 self.openaiCostUSD = totalCost
             }
+            try checkOpenAI(permit)
             recordUsageUpdate()
             openaiStatus = "API"
         } catch {
@@ -809,13 +1141,17 @@ final class UsageMonitor: ObservableObject {
         apiKey: String,
         startTime: Int,
         bucketWidth: String,
-        limit: Int
+        limit: Int,
+        budget: APIReadBudget,
+        permit: IntegrationPermit
     ) async throws -> [UsageParser.BucketTokenRecord] {
         var allBuckets: [UsageParser.BucketTokenRecord] = []
         var nextPage: String? = nil
         var pageCount = 0
+        var seenPages = Set<String>()
 
         repeat {
+            try checkOpenAI(permit)
             pageCount += 1
             var components = URLComponents(string: "https://api.openai.com/v1/organization/usage/completions")
             var queryItems = [
@@ -832,25 +1168,28 @@ final class UsageMonitor: ObservableObject {
             var req = URLRequest(url: url)
             req.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
 
-            let (data, resp) = try await urlSession.data(for: req)
-            guard let httpResp = resp as? HTTPURLResponse, (200...299).contains(httpResp.statusCode) else {
-                throw URLError(.badServerResponse)
-            }
+            let data = try await apiClient.data(for: req, budget: budget, permit: permit)
 
+            try checkOpenAI(permit)
             let parsed = try UsageParser.parseOpenAIUsagePageWithBuckets(data: data)
             allBuckets.append(contentsOf: parsed.buckets)
             nextPage = parsed.nextPage
+            if let nextPage, nextPage.utf8.count > 4096 || !seenPages.insert(nextPage).inserted {
+                throw BoundedAPIClient.Failure.limit
+            }
         } while nextPage != nil && pageCount < 10
-
+        guard nextPage == nil else { throw BoundedAPIClient.Failure.limit }
         return allBuckets
     }
 
-    private func fetchPaginatedOpenAICosts(apiKey: String, startTime: Int) async throws -> Double {
+    private func fetchPaginatedOpenAICosts(apiKey: String, startTime: Int, budget: APIReadBudget, permit: IntegrationPermit) async throws -> Double {
         var totalCost = 0.0
         var nextPage: String? = nil
         var pageCount = 0
+        var seenPages = Set<String>()
 
         repeat {
+            try checkOpenAI(permit)
             pageCount += 1
             var components = URLComponents(string: "https://api.openai.com/v1/organization/costs")
             var queryItems = [
@@ -867,24 +1206,27 @@ final class UsageMonitor: ObservableObject {
             var req = URLRequest(url: url)
             req.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
 
-            let (data, resp) = try await urlSession.data(for: req)
-            guard let httpResp = resp as? HTTPURLResponse, (200...299).contains(httpResp.statusCode) else {
-                throw URLError(.badServerResponse)
-            }
+            let data = try await apiClient.data(for: req, budget: budget, permit: permit)
 
+            try checkOpenAI(permit)
             let parsed = try UsageParser.parseOpenAICostsPage(data: data)
             totalCost = try UsageNumber.add(totalCost, parsed.costUSD)
             nextPage = parsed.nextPage
+            if let nextPage, nextPage.utf8.count > 4096 || !seenPages.insert(nextPage).inserted {
+                throw BoundedAPIClient.Failure.limit
+            }
         } while nextPage != nil && pageCount < 10
-
+        guard nextPage == nil else { throw BoundedAPIClient.Failure.limit }
         return totalCost
     }
 
-    private func fetchGeminiUsage(projectId: String) async {
-        guard let token = await fetchGcloudAccessToken() else {
+    private func fetchGeminiUsage(projectId: String, budget: APIReadBudget, permit: IntegrationPermit) async {
+        guard (try? checkGemini(permit)) != nil,
+              let token = await configuredGcloudToken(budget: budget, permit: permit) else {
             return
         }
 
+        guard (try? checkGemini(permit)) != nil else { return }
         let now = Date()
         let isoFormatter = ISO8601DateFormatter()
         let endStr = isoFormatter.string(from: now)
@@ -899,8 +1241,11 @@ final class UsageMonitor: ObservableObject {
                 token: token,
                 filter: tokenFilter,
                 startStr: monthStartStr,
-                endStr: endStr
+                endStr: endStr,
+                budget: budget,
+                permit: permit
             ), monthTokens > 0 {
+                try checkGemini(permit)
                 self.geminiUsedTokens = monthTokens
 
                 let weekStartStr = isoFormatter.string(from: Date(timeIntervalSince1970: TimeInterval(UsageParser.startTimestamp(for: .weekly, now: now))))
@@ -908,19 +1253,24 @@ final class UsageMonitor: ObservableObject {
                 let fiveHStartStr = isoFormatter.string(from: Date(timeIntervalSince1970: TimeInterval(UsageParser.startTimestamp(for: .fiveHours, now: now))))
                 let twoHStartStr = isoFormatter.string(from: Date(timeIntervalSince1970: TimeInterval(UsageParser.startTimestamp(for: .twoHours, now: now))))
 
-                if let w = try? await queryCloudMonitoring(projectId: projectId, token: token, filter: tokenFilter, startStr: weekStartStr, endStr: endStr) {
+                if let w = try? await queryCloudMonitoring(projectId: projectId, token: token, filter: tokenFilter, startStr: weekStartStr, endStr: endStr, budget: budget, permit: permit) {
+                    try checkGemini(permit)
                     self.geminiUsedWeekly = w
                 }
-                if let d = try? await queryCloudMonitoring(projectId: projectId, token: token, filter: tokenFilter, startStr: dayStartStr, endStr: endStr) {
+                if let d = try? await queryCloudMonitoring(projectId: projectId, token: token, filter: tokenFilter, startStr: dayStartStr, endStr: endStr, budget: budget, permit: permit) {
+                    try checkGemini(permit)
                     self.geminiUsedDaily = d
                 }
-                if let h = try? await queryCloudMonitoring(projectId: projectId, token: token, filter: tokenFilter, startStr: fiveHStartStr, endStr: endStr) {
+                if let h = try? await queryCloudMonitoring(projectId: projectId, token: token, filter: tokenFilter, startStr: fiveHStartStr, endStr: endStr, budget: budget, permit: permit) {
+                    try checkGemini(permit)
                     self.geminiUsed5h = h
                 }
-                if let h2 = try? await queryCloudMonitoring(projectId: projectId, token: token, filter: tokenFilter, startStr: twoHStartStr, endStr: endStr) {
+                if let h2 = try? await queryCloudMonitoring(projectId: projectId, token: token, filter: tokenFilter, startStr: twoHStartStr, endStr: endStr, budget: budget, permit: permit) {
+                    try checkGemini(permit)
                     self.geminiUsed2h = h2
                 }
 
+                try checkGemini(permit)
                 recordUsageUpdate()
                 geminiStatus = "GCP"
                 return
@@ -931,8 +1281,11 @@ final class UsageMonitor: ObservableObject {
                 token: token,
                 filter: requestCountFilter,
                 startStr: monthStartStr,
-                endStr: endStr
+                endStr: endStr,
+                budget: budget,
+                permit: permit
             )
+            try checkGemini(permit)
             if reqCount > 0 {
                 geminiStatus = "GCP (\(reqCount) reqs)"
             }
@@ -946,84 +1299,73 @@ final class UsageMonitor: ObservableObject {
         token: String,
         filter: String,
         startStr: String,
-        endStr: String
+        endStr: String,
+        budget: APIReadBudget,
+        permit: IntegrationPermit
     ) async throws -> Int {
         guard UsageParser.isValidGCPProjectReference(projectId),
               var components = URLComponents(string: "https://monitoring.googleapis.com") else {
             throw URLError(.badURL)
         }
         components.path = "/v3/projects/\(projectId)/timeSeries"
-        components.queryItems = [
+        let queryItems = [
             URLQueryItem(name: "filter", value: filter),
             URLQueryItem(name: "interval.startTime", value: startStr),
             URLQueryItem(name: "interval.endTime", value: endStr)
         ]
-        guard let url = components.url else { throw URLError(.badURL) }
-
-        var request = URLRequest(url: url)
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-
-        let (data, response) = try await urlSession.data(for: request)
-        guard let httpResp = response as? HTTPURLResponse, (200...299).contains(httpResp.statusCode) else {
-            throw URLError(.badServerResponse)
-        }
-        return try UsageParser.parseGeminiMonitoringSeries(data: data)
-    }
-
-    private func fetchGcloudAccessToken() async -> String? {
-        await withCheckedContinuation { continuation in
-            DispatchQueue.global(qos: .utility).async {
-                let home = FileManager.default.homeDirectoryForCurrentUser.path
-                let candidatePaths = [
-                    "/opt/homebrew/bin/gcloud",
-                    "/usr/local/bin/gcloud",
-                    "\(home)/google-cloud-sdk/bin/gcloud",
-                    "/opt/homebrew/share/google-cloud-sdk/bin/gcloud"
-                ]
-                guard let execPath = candidatePaths.first(where: { UsageParser.isTrustedExecutable(atPath: $0) }) else {
-                    continuation.resume(returning: nil)
-                    return
-                }
-
-                let process = Process()
-                process.executableURL = URL(fileURLWithPath: execPath)
-                process.arguments = ["auth", "print-access-token", "--quiet"]
-
-                var env = ProcessInfo.processInfo.environment
-                env["PATH"] = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
-                env["CLOUDSDK_CORE_DISABLE_PROMPTS"] = "1"
-                process.environment = env
-
-                let outPipe = Pipe()
-                process.standardOutput = outPipe
-                process.standardError = Pipe()
-
-                do {
-                    try process.run()
-                } catch {
-                    continuation.resume(returning: nil)
-                    return
-                }
-
-                let timeoutWorkItem = DispatchWorkItem {
-                    if process.isRunning {
-                        process.terminate()
-                    }
-                }
-                DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 8.0, execute: timeoutWorkItem)
-
-                let data = outPipe.fileHandleForReading.readDataToEndOfFile()
-                process.waitUntilExit()
-                timeoutWorkItem.cancel()
-
-                guard process.terminationStatus == 0 else {
-                    continuation.resume(returning: nil)
-                    return
-                }
-                let token = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
-                continuation.resume(returning: (token?.isEmpty == false) ? token : nil)
+        var total = 0
+        var nextPage: String?
+        var seenPages = Set<String>()
+        for _ in 0..<10 {
+            try checkGemini(permit)
+            components.queryItems = queryItems + (nextPage.map { [URLQueryItem(name: "pageToken", value: $0)] } ?? [])
+            guard let url = components.url else { throw URLError(.badURL) }
+            var request = URLRequest(url: url)
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+            let data = try await apiClient.data(for: request, budget: budget, permit: permit)
+            try checkGemini(permit)
+            total = try UsageNumber.add(total, UsageParser.parseGeminiMonitoringSeries(data: data))
+            let root = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+            nextPage = (root?["nextPageToken"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+            guard let nextPage else { return total }
+            guard nextPage.utf8.count <= 4096, seenPages.insert(nextPage).inserted else {
+                throw BoundedAPIClient.Failure.limit
             }
         }
+        throw BoundedAPIClient.Failure.limit
+    }
+
+    private func configuredGcloudToken(budget: APIReadBudget, permit: IntegrationPermit) async -> String? {
+        guard (try? checkGemini(permit)) != nil else { return nil }
+        if let gcloudTokenProvider { return await gcloudTokenProvider(budget, permit) }
+        return await fetchGcloudAccessToken(budget: budget, permit: permit)
+    }
+
+    private func fetchGcloudAccessToken(budget: APIReadBudget, permit: IntegrationPermit) async -> String? {
+        guard (try? checkGemini(permit)) != nil,
+              (try? budget.remainingSeconds()) != nil else { return nil }
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        let candidates = ["/opt/homebrew/bin/gcloud", "/usr/local/bin/gcloud",
+                          "\(home)/google-cloud-sdk/bin/gcloud", "/opt/homebrew/share/google-cloud-sdk/bin/gcloud"]
+        let worker = Task.detached(priority: .utility) { () async throws -> String? in
+            guard let executable = candidates.compactMap({ ExecutableTrust.executable(at: $0) }).first else { return nil }
+            let environment = try GcloudEnvironment.make(home: home, inherited: ProcessInfo.processInfo.environment)
+            // Revalidate the exact resolved path immediately before spawning.
+            guard ExecutableTrust.executable(at: executable) == executable else { return nil }
+            var limits = BoundedProcess.Limits()
+            let remaining = try budget.remainingSeconds()
+            let cleanupAllowance = limits.terminationGrace + limits.killGrace
+            guard remaining > cleanupAllowance else { return nil }
+            limits.seconds = min(limits.seconds, remaining - cleanupAllowance)
+            let output = try await BoundedProcess.run(executable: executable,
+                arguments: ["auth", "print-access-token", "--quiet"], environment: environment, limits: limits, permit: permit)
+            guard let token = String(data: output.stdout, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  BoundedAPIClient.isSafeBearer(token) else { return nil }
+            return token
+        }
+        return await withTaskCancellationHandler {
+            try? await worker.value
+        } onCancel: { worker.cancel() }
     }
 }
 
@@ -1071,13 +1413,13 @@ struct PeriodLimitRowView: View {
         guard metric.isValid else { return "数値エラー" }
         guard metric.isRemainingAvailable else {
             let status = "公式残量は未取得"
-            return showUsageAmounts
+            return showUsageAmounts && !metric.isQuotaOnly
                 ? "\(status)、推定使用量 \(formatCompactUsage(metric.usedTokens, unit: unit)) \(unit)"
                 : status
         }
         let prefix = metric.remainingSource == .configuredLimit ? "設定上限からの目安、" : ""
         let percentage = "\(prefix)残り \(metric.remainingPercent)パーセント"
-        guard showUsageAmounts else { return percentage }
+        guard showUsageAmounts && !metric.isQuotaOnly else { return percentage }
         return "\(percentage)、残量の目安 \(formatCompactUsage(metric.remainingTokens, unit: unit)) \(unit)"
     }
 
@@ -1088,21 +1430,19 @@ struct PeriodLimitRowView: View {
 
         HStack(spacing: 8) {
             // 1. Period Label
-            Text(metric.period.label)
+            Text(metric.displayLabel)
                 .font(.caption.weight(isHighlighted ? .semibold : .regular))
                 .foregroundStyle(isHighlighted ? .primary : .secondary)
-                .frame(width: 38, alignment: .leading)
+                .frame(width: metric.isQuotaOnly ? 128 : 38, alignment: .leading)
+                .lineLimit(2)
+                .help(metric.displayLabel)
 
-            // 2. Refined Liquid Glass Progress Bar
+            // 2. Native remaining-capacity gauge
             if metric.isRemainingAvailable {
-                LiquidGlassProgressBar(
-                    ratio: ratio,
-                    accent: accent,
-                    height: 6.0
-                )
+                RemainingQuotaGauge(ratio: ratio)
 
                 // Optional amount; percentages remain the default presentation.
-                if showUsageAmounts {
+                if showUsageAmounts && !metric.isQuotaOnly {
                     VStack(alignment: .trailing, spacing: 0) {
                         Text("約 \(usageText)")
                         Text(unit == "tokens" ? "トークン" : unit)
@@ -1117,7 +1457,7 @@ struct PeriodLimitRowView: View {
                 }
             } else if metric.isValid {
                 Spacer(minLength: 0)
-                if showUsageAmounts {
+                if showUsageAmounts && !metric.isQuotaOnly {
                     VStack(alignment: .trailing, spacing: 0) {
                         Text("推定使用量")
                             .font(.system(size: 9))
@@ -1145,7 +1485,7 @@ struct PeriodLimitRowView: View {
         }
         .padding(.vertical, 2)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(metric.period.label)制限")
+        .accessibilityLabel("\(metric.displayLabel)制限")
         .accessibilityValue(accessibilityUsageValue)
     }
 }
@@ -1165,14 +1505,13 @@ struct ProviderUsageSection: View {
     var iconName: String? = nil
     var serviceID: String = ""
 
-    @State private var isHovered: Bool = false
     @State private var isShowingDetails: Bool = false
 
     var displayedMetrics: [PeriodUsageMetric] {
         if let filter = selectedFilter {
             return metrics.filter { $0.period == filter }
         }
-        if isDetailed {
+        if isDetailed || metrics.contains(where: \.isQuotaOnly) {
             return metrics
         }
         // Progressive Disclosure (Summary mode): Show bottleneck + monthly
@@ -1202,77 +1541,73 @@ struct ProviderUsageSection: View {
         if displayedMetrics.isEmpty {
             EmptyView()
         } else {
-            VStack(alignment: .leading, spacing: 6) {
-                // Section Header (Control Center Module Header Style)
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    HStack(spacing: 5) {
-                        ServiceIcon(serviceID: serviceID, fallbackSystemName: resolvedIconName)
-
-                        Text(title)
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(.primary)
-                            .lineLimit(1)
-
-                        if subtitle == "未取得" {
-                            Text("未取得")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
+            GroupBox {
+                VStack(alignment: .leading, spacing: 6) {
+                    providerHeader
+                    if metrics.allSatisfy(\.isQuotaOnly), !subtitle.isEmpty {
+                        Text(subtitle)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    VStack(spacing: 3) {
+                        ForEach(displayedMetrics) { metric in
+                            PeriodLimitRowView(
+                                metric: metric,
+                                isHighlighted: highlightedPeriod == metric.period && selectedFilter == nil,
+                                unit: unit,
+                                accent: accent,
+                                showUsageAmounts: showUsageAmounts
+                            )
                         }
                     }
-                    .layoutPriority(1)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .accessibilityElement(children: .contain)
+        }
+    }
 
-                    Spacer(minLength: 6)
+    private var providerHeader: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            HStack(spacing: 5) {
+                ServiceIcon(serviceID: serviceID, fallbackSystemName: resolvedIconName)
 
-                    Button {
-                        isShowingDetails.toggle()
-                    } label: {
-                        Image(systemName: "info.circle")
-                            .font(.caption)
-                            .frame(width: 20, height: 20)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(.secondary)
-                    .help("\(title)のデータ元・参考額・リセット日時")
-                    .accessibilityLabel("\(title)の利用詳細")
-                    .popover(isPresented: $isShowingDetails) {
-                        usageDetails
-                    }
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                    .accessibilityAddTraits(.isHeader)
 
-                    Text("残り")
+                if subtitle == "未取得" {
+                    Text("未取得")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                        .frame(width: 46, alignment: .trailing)
+                        .lineLimit(1)
                 }
+            }
+            .layoutPriority(1)
 
-                // Period Rows
-                VStack(spacing: 3) {
-                    ForEach(displayedMetrics) { metric in
-                        PeriodLimitRowView(
-                            metric: metric,
-                            isHighlighted: highlightedPeriod == metric.period && selectedFilter == nil,
-                            unit: unit,
-                            accent: accent,
-                            showUsageAmounts: showUsageAmounts
-                        )
-                    }
-                }
+            Spacer(minLength: 6)
+
+            Button {
+                isShowingDetails.toggle()
+            } label: {
+                Image(systemName: "info.circle")
+                    .font(.caption)
             }
-            .padding(.horizontal, 11)
-            .padding(.vertical, 8.5)
-            .background(
-                FrostedGlassCardBackground(
-                    cornerRadius: 12,
-                    accentTint: accent,
-                    isHovered: isHovered
-                )
-            )
-            .onHover { hovering in
-                withAnimation(.easeOut(duration: 0.14)) {
-                    isHovered = hovering
-                }
+            .buttonStyle(.borderless)
+            .controlSize(.mini)
+            .help("\(title)のデータ元・参考額・リセット日時")
+            .accessibilityLabel("\(title)の利用詳細")
+            .popover(isPresented: $isShowingDetails) {
+                usageDetails
             }
+
+            Text("残り")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .frame(width: 46, alignment: .trailing)
         }
     }
 
@@ -1281,7 +1616,11 @@ struct ProviderUsageSection: View {
             Text("\(title)の利用詳細")
                 .font(.headline)
 
-            if metrics.contains(where: \.requiresOfficialQuota) {
+            if metrics.allSatisfy(\.isQuotaOnly) {
+                Text("Antigravityが返す利用枠の残り割合です。トークン数や設定上限からの推計ではありません。取得できない枠は未取得とし、リセット予定を過ぎた値は再取得まで表示しません。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else if metrics.contains(where: \.requiresOfficialQuota) {
                 Text("公式残量は未取得です。ローカルログやGCPの使用量を、公式の残り％に換算していません。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -1323,13 +1662,21 @@ struct ProviderUsageSection: View {
                 Divider()
                 ForEach(resetMetrics) { metric in
                     if let reset = formatResetTimestamp(metric.resetTimestamp) {
-                        LabeledContent("\(metric.period.label)枠のリセット", value: reset)
+                        LabeledContent("\(metric.displayLabel)枠のリセット", value: reset)
                             .font(.caption.monospacedDigit())
                             .foregroundStyle(.secondary)
                             .accessibilityElement(children: .ignore)
-                            .accessibilityLabel("\(metric.period.label)枠のリセット")
+                            .accessibilityLabel("\(metric.displayLabel)枠のリセット")
                             .accessibilityValue(reset)
                     }
+                }
+            }
+
+            ForEach(metrics.filter { $0.resetDescription != nil }) { metric in
+                if let description = metric.resetDescription {
+                    Text("\(metric.displayLabel)：\(description)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
             }
 
@@ -1351,9 +1698,15 @@ final class FirstMouseHostingHelperView: NSView {
     }
 }
 
+func isDesktopWidgetWindow(_ window: NSWindow) -> Bool {
+    window.identifier?.rawValue.contains("desktop-widget") == true
+        || window.title == "AIMeter"
+        || window.title == "AI Meter Widget"
+}
+
 func closeDesktopWidgetWindow(monitor: UsageMonitor? = nil) {
     DispatchQueue.main.async {
-        for window in NSApp.windows where window.identifier?.rawValue.contains("desktop-widget") == true || window.title == "AI Meter Widget" {
+        for window in NSApp.windows where isDesktopWidgetWindow(window) {
             window.close()
         }
         monitor?.isDesktopWidgetOpen = false
@@ -1362,7 +1715,7 @@ func closeDesktopWidgetWindow(monitor: UsageMonitor? = nil) {
 
 func miniaturizeDesktopWidgetWindow(monitor: UsageMonitor? = nil) {
     DispatchQueue.main.async {
-        for window in NSApp.windows where window.identifier?.rawValue.contains("desktop-widget") == true || window.title == "AI Meter Widget" {
+        for window in NSApp.windows where isDesktopWidgetWindow(window) {
             window.miniaturize(nil)
         }
         monitor?.isDesktopWidgetOpen = false
@@ -1372,7 +1725,7 @@ func miniaturizeDesktopWidgetWindow(monitor: UsageMonitor? = nil) {
 func openOrRestoreDesktopWidgetWindow(monitor: UsageMonitor? = nil, openWindow: @escaping (String) -> Void) {
     DispatchQueue.main.async {
         var found = false
-        for window in NSApp.windows where window.identifier?.rawValue.contains("desktop-widget") == true || window.title == "AI Meter Widget" {
+        for window in NSApp.windows where isDesktopWidgetWindow(window) {
             found = true
             if window.isMiniaturized {
                 window.deminiaturize(nil)
@@ -1413,31 +1766,9 @@ struct DesktopWidgetWindowAccessor: NSViewRepresentable {
     }
 
     static func configure(window: NSWindow, allowBackgroundDrag: Bool, isPinned: Bool) {
-        window.styleMask.insert([.titled, .fullSizeContentView, .closable, .miniaturizable, .resizable])
         window.level = isPinned ? .floating : .normal
         window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         window.isMovableByWindowBackground = allowBackgroundDrag
-        window.backgroundColor = .clear
-        window.isOpaque = false
-        window.hasShadow = true
-        window.titleVisibility = .hidden
-        window.titlebarAppearsTransparent = true
-        window.titlebarSeparatorStyle = .none
-
-        // ネイティブ macOS トラフィックライト（標準の閉じる・最小化・ズームの3連ボタン）を完全に有効化
-        if let closeBtn = window.standardWindowButton(.closeButton) {
-            closeBtn.isHidden = false
-            closeBtn.isEnabled = true
-        }
-        if let miniBtn = window.standardWindowButton(.miniaturizeButton) {
-            miniBtn.isHidden = false
-            miniBtn.isEnabled = true
-        }
-        if let zoomBtn = window.standardWindowButton(.zoomButton) {
-            zoomBtn.isHidden = false
-            zoomBtn.isEnabled = true
-        }
-
         window.setFrameAutosaveName("AIMeterDesktopWidgetFrame")
         if !allowBackgroundDrag {
             NSApplication.shared.activate(ignoringOtherApps: true)
@@ -1451,7 +1782,69 @@ func openSettingsWindow(openWindow: OpenWindowAction) {
     openWindow(id: "settings")
 }
 
-// MARK: - Main Card View (macOS Tahoe Default App Liquid Glass Harmony)
+// MARK: - Native desktop shell and shared meter content
+struct DesktopMeterView: View {
+    @ObservedObject var monitor: UsageMonitor
+
+    var body: some View {
+        AIMeterCardView(monitor: monitor)
+            .navigationTitle("AIMeter")
+            .toolbar {
+                ToolbarItemGroup(placement: .primaryAction) {
+                    MeterRefreshButton(monitor: monitor)
+                    Toggle(isOn: $monitor.isWidgetPinned) {
+                        Label("最前面に固定", systemImage: monitor.isWidgetPinned ? "pin.fill" : "pin")
+                    }
+                    .toggleStyle(.button)
+                    .labelStyle(.iconOnly)
+                    .help(monitor.isWidgetPinned ? "最前面固定中 (クリックで解除)" : "通常ウィンドウ (クリックで最前面固定)")
+                    .accessibilityIdentifier("pin-widget")
+                    .accessibilityValue(monitor.isWidgetPinned ? "固定中" : "解除中")
+                    MeterSettingsButton()
+                }
+            }
+    }
+}
+
+private struct MeterRefreshButton: View {
+    @ObservedObject var monitor: UsageMonitor
+
+    var body: some View {
+        Button {
+            Task { await monitor.refresh() }
+        } label: {
+            ZStack {
+                Image(systemName: "arrow.clockwise")
+                    .opacity(monitor.isRefreshing ? 0 : 1)
+                if monitor.isRefreshing {
+                    ProgressView().controlSize(.small)
+                }
+            }
+            .frame(width: 16, height: 16)
+        }
+        .disabled(monitor.isRefreshing)
+        .help("今すぐ更新")
+        .accessibilityLabel("今すぐ更新")
+        .accessibilityValue(monitor.isRefreshing ? "更新中" : "")
+        .accessibilityIdentifier("refresh-usage")
+    }
+}
+
+private struct MeterSettingsButton: View {
+    @Environment(\.openWindow) private var openWindow
+
+    var body: some View {
+        Button {
+            openSettingsWindow(openWindow: openWindow)
+        } label: {
+            Label("設定を開く", systemImage: "gearshape")
+        }
+        .labelStyle(.iconOnly)
+        .help("設定を開く (⌘,)")
+        .accessibilityIdentifier("open-settings")
+    }
+}
+
 struct AIMeterCardView: View {
     @ObservedObject var monitor: UsageMonitor
     var isMenuBar: Bool = false
@@ -1471,76 +1864,32 @@ struct AIMeterCardView: View {
         monitor.customSubscriptions.filter(\.isEnabled)
     }
 
-    private var totalVisibleProvidersCount: Int {
-        (monitor.showOpenAISection ? 1 : 0) + (monitor.showGeminiSection ? 1 : 0) + visibleCustomSubscriptions.count
+    var totalVisibleProvidersCount: Int {
+        (monitor.showOpenAISection ? 1 : 0) + (monitor.showGeminiSection ? 1 : 0)
+            + (monitor.showAntigravitySection ? 1 : 0) + visibleCustomSubscriptions.count
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            // Header (Finder / Control Center Unified Liquid Glass Header)
-            HStack(spacing: 8) {
-                if !isMenuBar {
-                    // ネイティブ macOS トラフィックライト（赤・黄・緑の3連）用のインセット
-                    Color.clear
-                        .frame(width: 70, height: 26)
-                        .accessibilityHidden(true)
+            if isMenuBar {
+                HStack {
+                    Text("AIMeter")
+                        .font(.headline)
+                    Spacer()
+                    MeterRefreshButton(monitor: monitor)
+                    MeterSettingsButton()
                 }
-
-                Text("AIMeter")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(.primary)
-
-                Spacer()
-
-                // Native macOS Tahoe Liquid Glass Capsule Toolbar
-                LiquidGlassToolbarPill {
-                    // 更新ボタン
-                    LiquidGlassToolbarIconButton(
-                        systemName: "arrow.clockwise",
-                        isLoading: monitor.isRefreshing,
-                        helpText: "今すぐ更新"
-                    ) {
-                        Task {
-                            await monitor.refresh()
-                        }
-                    }
-
-                    // ウィジェット専用: 最前面ピン留めトグル
-                    if !isMenuBar {
-                        LiquidGlassToolbarIconButton(
-                            systemName: monitor.isWidgetPinned ? "pin.fill" : "pin",
-                            isActive: monitor.isWidgetPinned,
-                            helpText: monitor.isWidgetPinned ? "最前面固定中 (クリックで解除)" : "通常ウィンドウ (クリックで最前面固定)"
-                        ) {
-                            withAnimation(.easeInOut(duration: 0.16)) {
-                                monitor.isWidgetPinned.toggle()
-                            }
-                        }
-                    }
-
-                    // 設定ボタン
-                    LiquidGlassToolbarIconButton(
-                        systemName: "gearshape",
-                        helpText: "設定を開く (⌘,)"
-                    ) {
-                        openSettingsWindow(openWindow: openWindow)
-                    }
-                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                Divider()
             }
-            .frame(height: 26)
 
-            Divider()
-                .opacity(0.35)
-                .padding(.horizontal, -14)
-
-            Picker("表示モード", selection: $monitor.isDetailedView.animation(.easeInOut(duration: 0.16))) {
-                Text("要点表示").tag(false)
-                Text("全枠表示").tag(true)
+            TimelineView(.periodic(from: .now, by: 60)) { _ in
+                // A monitor refresh may be newer than the last timeline tick.
+                CharacterSummaryView(highlight: monitor.characterHighlight())
             }
-            .pickerStyle(.segmented)
-            .controlSize(.small)
-            .labelsHidden()
-            .help("要点表示は残量の割合が最も少ない枠と月間枠、全枠表示は有効なすべての枠を表示します")
+
+            UsageDisplayModePicker(isDetailedView: $monitor.isDetailedView)
 
             // Provider Sections
             if totalVisibleProvidersCount == 0 {
@@ -1552,24 +1901,20 @@ struct AIMeterCardView: View {
                     Button("設定を開く...") {
                         openSettingsWindow(openWindow: openWindow)
                     }
-                    .buttonStyle(GlassCapsuleButtonStyle(isProminent: true))
+                    .buttonStyle(.borderedProminent)
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 16)
-            } else if isMenuBar && totalVisibleProvidersCount > 3 {
-                ScrollView {
-                    providerSectionsStack
-                        .padding(.trailing, 2)
-                }
-                .frame(maxHeight: 380)
-            } else if !isMenuBar && totalVisibleProvidersCount > 5 {
-                ScrollView {
-                    providerSectionsStack
-                        .padding(.trailing, 2)
-                }
-                .frame(maxHeight: 520)
             } else {
-                providerSectionsStack
+                ViewThatFits(in: .vertical) {
+                    providerSectionsStack
+                        .fixedSize(horizontal: false, vertical: true)
+                    ScrollView {
+                        providerSectionsStack
+                            .padding(.trailing, 2)
+                    }
+                }
+                .frame(maxHeight: isMenuBar ? 300 : 420)
             }
 
             if let error = monitor.collectionError {
@@ -1602,21 +1947,13 @@ struct AIMeterCardView: View {
 
             if isMenuBar {
                 Divider()
-                    .opacity(0.35)
                 menuBarFooterButtons
             }
         }
         .padding(.horizontal, 14)
-        .padding(.top, isMenuBar ? 14 : 9)
+        .padding(.top, 14)
         .padding(.bottom, 14)
         .frame(width: 348)
-        .background(
-            LiquidGlassBackground(
-                cornerRadius: 18,
-                material: .popover,
-                blendingMode: .behindWindow
-            )
-        )
         .background(
             Group {
                 if !isMenuBar {
@@ -1633,8 +1970,7 @@ struct AIMeterCardView: View {
             }
         )
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.willCloseNotification)) { note in
-            if let win = note.object as? NSWindow,
-               win.identifier?.rawValue.contains("desktop-widget") == true || win.title == "AI Meter Widget" {
+            if let win = note.object as? NSWindow, isDesktopWidgetWindow(win) {
                 monitor.isDesktopWidgetOpen = false
             }
         }
@@ -1686,64 +2022,31 @@ struct AIMeterCardView: View {
         )
     }
 
-    @ViewBuilder
     private var menuBarFooterButtons: some View {
-        if #available(macOS 26.0, *) {
-            GlassEffectContainer(spacing: 8) {
-                HStack(spacing: 8) {
-                    Button(monitor.isDesktopWidgetOpen ? "ウィジェットを非表示" : "ウィジェットを表示") {
-                        if monitor.isDesktopWidgetOpen {
-                            closeDesktopWidgetWindow(monitor: monitor)
-                        } else {
-                            openOrRestoreDesktopWidgetWindow(monitor: monitor) { id in
-                                openWindow(id: id)
-                            }
-                        }
+        HStack(spacing: 8) {
+            Button(monitor.isDesktopWidgetOpen ? "ウィジェットを非表示" : "ウィジェットを表示") {
+                if monitor.isDesktopWidgetOpen {
+                    closeDesktopWidgetWindow(monitor: monitor)
+                } else {
+                    openOrRestoreDesktopWidgetWindow(monitor: monitor) { id in
+                        openWindow(id: id)
                     }
-                    .buttonStyle(.glass)
-                    .controlSize(.small)
-
-                    Spacer()
-
-                    Button("設定...") {
-                        openSettingsWindow(openWindow: openWindow)
-                    }
-                    .buttonStyle(.glass)
-                    .controlSize(.small)
-
-                    Button("終了") {
-                        NSApplication.shared.terminate(nil)
-                    }
-                    .buttonStyle(.glass)
-                    .controlSize(.small)
                 }
             }
-        } else {
-            HStack(spacing: 8) {
-                Button(monitor.isDesktopWidgetOpen ? "ウィジェットを非表示" : "ウィジェットを表示") {
-                    if monitor.isDesktopWidgetOpen {
-                        closeDesktopWidgetWindow(monitor: monitor)
-                    } else {
-                        openOrRestoreDesktopWidgetWindow(monitor: monitor) { id in
-                            openWindow(id: id)
-                        }
-                    }
-                }
-                .buttonStyle(GlassCapsuleButtonStyle(isSelected: monitor.isDesktopWidgetOpen))
+            .accessibilityValue(monitor.isDesktopWidgetOpen ? "表示中" : "非表示")
 
-                Spacer()
+            Spacer()
 
-                Button("設定...") {
-                    openSettingsWindow(openWindow: openWindow)
-                }
-                .buttonStyle(GlassCapsuleButtonStyle())
+            Button("設定...") {
+                openSettingsWindow(openWindow: openWindow)
+            }
 
-                Button("終了") {
-                    NSApplication.shared.terminate(nil)
-                }
-                .buttonStyle(GlassCapsuleButtonStyle())
+            Button("終了") {
+                NSApplication.shared.terminate(nil)
             }
         }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
     }
 
     @ViewBuilder
@@ -1778,6 +2081,15 @@ struct AIMeterCardView: View {
                     showUsageAmounts: monitor.showUsageAmounts,
                     iconName: "sparkle",
                     serviceID: "gemini"
+                )
+            }
+
+            if monitor.showAntigravitySection {
+                ProviderUsageSection(
+                    title: "Antigravity", subtitle: monitor.antigravityStatus,
+                    usedCostUSD: 0, budgetUSD: 0, metrics: monitor.antigravityMetrics,
+                    highlightedPeriod: nil, unit: "", isDetailed: monitor.isDetailedView,
+                    showUsageAmounts: false, iconName: "sparkles", serviceID: "antigravity"
                 )
             }
 
@@ -1825,10 +2137,10 @@ struct AIMeterApp: App {
     }
 
     var body: some Scene {
-        Window("AI Meter Widget", id: "desktop-widget") {
-            AIMeterCardView(monitor: monitor, isMenuBar: false)
+        Window("AIMeter", id: "desktop-widget") {
+            DesktopMeterView(monitor: monitor)
         }
-        .windowStyle(.hiddenTitleBar)
+        .windowToolbarStyle(.unifiedCompact)
         .windowResizability(.contentSize)
 
         MenuBarExtra {

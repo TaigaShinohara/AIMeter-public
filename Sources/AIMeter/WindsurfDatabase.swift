@@ -17,13 +17,17 @@ enum WindsurfDatabase {
         }
     }
 
-    static func readPlan(at url: URL, input: BoundedInput, snapshotReady: (() throws -> Void)? = nil) throws -> Data? {
+    static func readPlan(at url: URL, input: BoundedInput, snapshotReady: (() throws -> Void)? = nil,
+                         snapshotRoot: URL? = nil) throws -> Data? {
+        try PrivateSnapshotManager.withSnapshot(root: snapshotRoot ?? PrivateSnapshotManager.defaultRoot, input: input) { directory in
+            try readPrivatePlan(at: url, input: input, snapshotReady: snapshotReady, directory: directory)
+        }
+    }
+
+    private static func readPrivatePlan(at url: URL, input: BoundedInput,
+                                        snapshotReady: (() throws -> Void)?, directory: URL) throws -> Data? {
         // SQLite opens filenames itself. Only let it open our private copy so a
         // source-path replacement cannot turn its blocking open into a FIFO read.
-        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("aimeter-db-\(UUID().uuidString)")
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: false,
-                                                attributes: [.posixPermissions: 0o700])
-        defer { try? FileManager.default.removeItem(at: directory) }
         let snapshot = directory.appendingPathComponent("state.vscdb")
         try input.copyRegularFile(at: url, to: snapshot, maximum: input.limits.databaseBytes)
         // Preserve committed WAL data from active editors. SQLite validates WAL

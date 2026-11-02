@@ -125,9 +125,15 @@ final class PendingInputRegressionTests: XCTestCase {
         XCTAssertEqual(result, SQLITE_OK)
 
         let destination = root.appendingPathComponent("usage.json")
-        let initial = try await LocalUsageCollector.collectAndSave(
-            targetFileURL: destination, customPaths: ["windsurf": dbURL.path], home: root
-        )
+        let initial: LocalUsageData
+        do {
+            initial = try await LocalUsageCollector.collectAndSave(
+                targetFileURL: destination, customPaths: ["windsurf": dbURL.path], home: root
+            )
+        } catch {
+            XCTFail("Normal synthetic collection failed: \(type(of: error))")
+            return
+        }
         XCTAssertEqual(initial.providers?["windsurf"]?.usedByPeriod?.monthly, 17)
         let previousBytes = try Data(contentsOf: destination)
         let targetBytes = Data("synthetic-wal-target".utf8)

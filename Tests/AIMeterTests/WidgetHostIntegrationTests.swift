@@ -22,9 +22,10 @@ final class WidgetHostIntegrationTests: XCTestCase {
     }
 
     @MainActor
-    private func monitor() -> UsageMonitor {
+    private func monitor(showUsageAmounts: Bool = false) -> UsageMonitor {
         // No Keychain, collector, timers, real preferences or service requests.
-        UsageMonitor(defaults: defaults, startMonitoring: false)
+        defaults.set(showUsageAmounts, forKey: "showUsageAmounts")
+        return UsageMonitor(defaults: defaults, startMonitoring: false)
     }
 
     private var usage: LocalUsageData {
@@ -36,7 +37,7 @@ final class WidgetHostIntegrationTests: XCTestCase {
 
     @MainActor
     func testEnabledServicesPeriodsAndCostsMatchHostIncludingGemini() throws {
-        let host = monitor()
+        let host = monitor(showUsageAmounts: true)
         host.applyLocalSnapshot(usage)
         host.openaiEnabledPeriodsCSV = "5h,7d"
         host.openaiTokenLimit5h = 100
@@ -55,14 +56,15 @@ final class WidgetHostIntegrationTests: XCTestCase {
         XCTAssertEqual(gemini.bottleneckPeriod, .monthly)
         XCTAssertEqual(gemini.usedTokens, 50)
         XCTAssertEqual(gemini.remainingSource, .unavailable)
-        XCTAssertEqual(initial.totalCostUSD, host.totalCostUSD)
+        XCTAssertEqual(initial.totalCostUSD, 0)
+        XCTAssertEqual(host.totalCostUSD, 5)
 
         host.openaiEnabledPeriodsCSV = "5h"
         host.showGeminiSection = false
         let changed = host.widgetSnapshot()
         XCTAssertEqual(changed.allServices.map(\.id), ["openai"])
         XCTAssertEqual(changed.mostCriticalService?.remainingPercent, 90)
-        XCTAssertEqual(changed.totalCostUSD, 2)
+        XCTAssertEqual(changed.totalCostUSD, 0)
         host.showOpenAISection = false
         XCTAssertTrue(host.widgetSnapshot().hasData)
         XCTAssertTrue(host.widgetSnapshot().allServices.isEmpty)
@@ -71,7 +73,7 @@ final class WidgetHostIntegrationTests: XCTestCase {
 
     @MainActor
     func testManualAndLiveUsageResolveExactlyLikeTheHostAndNoPresetsAreInvented() throws {
-        let host = monitor()
+        let host = monitor(showUsageAmounts: true)
         host.showOpenAISection = false
         host.showGeminiSection = false
         host.applyLocalSnapshot(usage)
@@ -88,7 +90,8 @@ final class WidgetHostIntegrationTests: XCTestCase {
         XCTAssertEqual(snapshot.allServices.map(\.id), ["cursor_test"])
         XCTAssertEqual(snapshot.mostCriticalService?.usedTokens, 80)
         XCTAssertEqual(snapshot.mostCriticalService?.remainingPercent, host.metrics(for: subscription).first?.remainingPercent)
-        XCTAssertEqual(snapshot.totalCostUSD, 7)
+        XCTAssertEqual(snapshot.totalCostUSD, 0)
+        XCTAssertEqual(host.totalCostUSD, 7)
         host.customSubscriptions[0].isEnabled = false
         XCTAssertTrue(host.widgetSnapshot().allServices.isEmpty)
     }
@@ -110,7 +113,7 @@ final class WidgetHostIntegrationTests: XCTestCase {
         let read = SharedStore.loadWidgetSnapshot(from: cache)
         XCTAssertEqual(read, host.widgetSnapshot())
         XCTAssertEqual(read.allServices.first { $0.id == "openai" }?.remainingPercent, 15)
-        XCTAssertEqual(read.totalCostUSD, host.totalCostUSD)
+        XCTAssertEqual(read.totalCostUSD, 0)
         XCTAssertEqual(read.updatedAt, ISO8601DateFormatter().date(from: "2026-10-24T00:00:00Z"))
         XCTAssertTrue(read.updateFailed)
         XCTAssertNil(host.widgetSharingError)

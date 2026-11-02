@@ -11,6 +11,12 @@ import sqlite3
 import stat
 import time
 import math
+import ctypes
+import errno
+import re
+import sys
+import uuid
+import shutil
 from contextlib import closing, contextmanager
 import tempfile
 from typing import Any, Dict, Optional, Tuple
@@ -18,6 +24,7 @@ from typing import Any, Dict, Optional, Tuple
 
 PERIOD_KEYS = ("2h", "5h", "1d", "7d", "30d")
 MAX_COUNT = 9007199254740991
+LEGACY_PROVIDER_IDS = frozenset({"claude", "grokbot", "copilot", "windsurf", "cursor", "trae", "custom"})
 
 
 class InputFailure(ValueError):
@@ -186,6 +193,110 @@ def empty_period_dict() -> Dict[str, int]:
     return {k: 0 for k in PERIOD_KEYS}
 
 
+def create_private_snapshot_file(path: Path, *, _directory=False) -> int:
+    """Create with the no-inherit ACL in openx_np, before any payload exists.
+
+    Darwin FILESEC_* / ACL constants match sys/fcntl.h and sys/acl.h. Removing
+    an ACL after a normal open could leave a reader with an already-open FD.
+    Unsupported platforms fail closed rather than silently weakening storage.
+    """
+    if sys.platform != "darwin":
+        raise InputFailure("Private snapshot storage is unavailable")
+    lib = ctypes.CDLL(None, use_errno=True)
+    void = ctypes.c_void_p
+    signatures = {
+        "acl_init": ([ctypes.c_int], void),
+        "acl_free": ([void], ctypes.c_int),
+        "acl_get_flagset_np": ([void, ctypes.POINTER(void)], ctypes.c_int),
+        "acl_add_flag_np": ([void, ctypes.c_int], ctypes.c_int),
+        "acl_get_fd_np": ([ctypes.c_int, ctypes.c_int], void),
+        "acl_valid": ([void], ctypes.c_int),
+        "acl_get_entry": ([void, ctypes.c_int, ctypes.POINTER(void)], ctypes.c_int),
+        "filesec_init": ([], void),
+        "filesec_free": ([void], None),
+        "filesec_set_property": ([void, ctypes.c_int, void], ctypes.c_int),
+        "openx_np": ([ctypes.c_char_p, ctypes.c_int, void], ctypes.c_int),
+        "mkdirx_np": ([ctypes.c_char_p, void], ctypes.c_int),
+    }
+    try:
+        for name, (arguments, result) in signatures.items():
+            function = getattr(lib, name)
+            function.argtypes = arguments
+            function.restype = result
+    except AttributeError:
+        raise InputFailure("Private snapshot storage is unavailable") from None
+    acl = lib.acl_init(0)
+    security = lib.filesec_init()
+    descriptor = -1
+    accepted = False
+    directory_created = False
+    try:
+        flags = void()
+        expected_mode = 0o700 if _directory else 0o600
+        mode = ctypes.c_uint16(expected_mode)
+        acl_pointer = void(acl)
+        if (not acl or not security
+                or lib.acl_get_flagset_np(acl, ctypes.byref(flags)) != 0
+                or lib.acl_add_flag_np(flags, 1 << 17) != 0
+                or lib.filesec_set_property(security, 4, ctypes.byref(mode)) != 0
+                or lib.filesec_set_property(security, 5, ctypes.byref(acl_pointer)) != 0):
+            raise InputFailure("Cannot create a private snapshot")
+        if _directory:
+            if lib.mkdirx_np(os.fsencode(path), security) != 0:
+                raise InputFailure("Cannot create a private snapshot directory")
+            directory_created = True
+            descriptor = os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
+        else:
+            descriptor = lib.openx_np(os.fsencode(path), os.O_WRONLY | os.O_CREAT | os.O_EXCL
+                                     | os.O_NOFOLLOW | os.O_CLOEXEC, security)
+        if descriptor < 0:
+            raise InputFailure("Cannot create a private snapshot")
+        os.fchmod(descriptor, expected_mode)
+        info = os.fstat(descriptor)
+        is_kind = stat.S_ISDIR(info.st_mode) if _directory else stat.S_ISREG(info.st_mode)
+        if (not is_kind or info.st_uid != os.geteuid()
+                or info.st_mode & 0o7777 != expected_mode):
+            raise InputFailure("Cannot verify private snapshot permissions")
+        ctypes.set_errno(0)
+        actual = lib.acl_get_fd_np(descriptor, 0x100)
+        if actual:
+            try:
+                entry = void()
+                ctypes.set_errno(0)
+                if (lib.acl_valid(actual) != 0
+                        or lib.acl_get_entry(actual, 0, ctypes.byref(entry)) != -1
+                        or ctypes.get_errno() != errno.EINVAL):
+                    raise InputFailure("Cannot verify private snapshot permissions")
+            finally:
+                lib.acl_free(actual)
+        elif ctypes.get_errno() != errno.ENOENT:
+            raise InputFailure("Cannot verify private snapshot permissions")
+        accepted = True
+        return descriptor
+    finally:
+        if security:
+            lib.filesec_free(security)
+        if acl:
+            lib.acl_free(acl)
+        if descriptor >= 0 and not accepted:
+            os.close(descriptor)
+            if not _directory:
+                path.unlink(missing_ok=True)
+        if directory_created and not accepted:
+            path.rmdir()
+
+
+@contextmanager
+def private_snapshot_directory():
+    directory = Path(tempfile.gettempdir()) / ("aimeter-private-db-" + uuid.uuid4().hex)
+    descriptor = create_private_snapshot_file(directory, _directory=True)
+    os.close(descriptor)
+    try:
+        yield directory
+    finally:
+        shutil.rmtree(directory)
+
+
 def atomic_write_json(target_path: Path, data: Dict[str, Any]) -> None:
     content = json.dumps(data, indent=2, ensure_ascii=False, allow_nan=False) + "\n"
     try:
@@ -195,12 +306,9 @@ def atomic_write_json(target_path: Path, data: Dict[str, Any]) -> None:
     if dest_info is not None and not stat.S_ISREG(dest_info.st_mode):
         raise InputFailure("Target snapshot path is not a regular file")
     parent_dir = target_path.parent
-    fd, tmp_path_str = tempfile.mkstemp(
-        prefix=".ai_meter_usage.", suffix=".tmp", dir=str(parent_dir)
-    )
-    tmp_path = Path(tmp_path_str)
+    tmp_path = parent_dir / (".ai_meter_usage." + uuid.uuid4().hex + ".tmp")
+    fd = create_private_snapshot_file(tmp_path)
     try:
-        os.fchmod(fd, 0o600)
         with os.fdopen(fd, "w", encoding="utf-8") as f:
             f.write(content)
             f.flush()
@@ -735,8 +843,7 @@ def read_windsurf_plan(db_path: Path, *, seconds: float = 2.0,
             info = os.fstat(incoming.fileno())
             if not stat.S_ISREG(info.st_mode) or info.st_size > remaining_bytes:
                 raise ValueError("Invalid or oversized Windsurf database")
-            with target.open("xb") as outgoing:
-                os.fchmod(outgoing.fileno(), 0o600)
+            with os.fdopen(create_private_snapshot_file(target), "wb") as outgoing:
                 while True:
                     if time.monotonic() >= deadline:
                         raise ValueError("Windsurf database time budget exceeded")
@@ -754,7 +861,7 @@ def read_windsurf_plan(db_path: Path, *, seconds: float = 2.0,
 
     # SQLite must not reopen an attacker-replaceable source path. Retain the
     # committed WAL alongside the private copy; corrupt/racing snapshots fail.
-    with tempfile.TemporaryDirectory(prefix="aimeter-db-") as directory:
+    with private_snapshot_directory() as directory:
         budget.check()
         # Keep the existing 256 MiB database limit, while charging the shared
         # refresh budget for both the database and its committed WAL.
@@ -932,6 +1039,38 @@ def valid_saved_provider(value) -> bool:
     return True
 
 
+def sanitized_provider(value):
+    """Project into the supported schema; never carry opaque legacy fields."""
+    if not valid_saved_provider(value):
+        return None
+    result = {}
+    for field in ("usedByPeriod", "resetAtByPeriod", "serverUsedPercentByPeriod"):
+        if isinstance(value.get(field), dict):
+            result[field] = {key: value[field][key] for key in PERIOD_KEYS
+                             if value[field].get(key) is not None}
+    if value.get("costUSD") is not None:
+        result["costUSD"] = value["costUSD"]
+    labels = {"Pro", "Max", "Max (default_claude_max_5x)", "Max (default_claude_max_20x)",
+              "SuperGrok", "SuperGrok Heavy", "Premium Reqs", "Pro / Agent",
+              "Windsurf Pro", "Windsurf Free", "Windsurf Teams", "Windsurf Enterprise"}
+    result["status"] = value.get("status") if value.get("status") in labels else "ローカル集計"
+    return result
+
+
+def known_provider_id(key):
+    if not isinstance(key, str):
+        return False
+    if key in LEGACY_PROVIDER_IDS:
+        return True
+    # Match IDs actually generated by CustomSubscriptionConfig.blankCustom
+    # (six hexadecimal characters) and addSubscription duplicates (four).
+    # Arbitrary lowercase/hyphen text is still private free text, not an ID.
+    for base in LEGACY_PROVIDER_IDS:
+        if key.startswith(base + "_") and re.fullmatch(r"[0-9a-f]{4}", key[len(base) + 1:]):
+            return True
+    return re.fullmatch(r"custom_[0-9a-f]{6}(?:_[0-9a-f]{4})?", key) is not None
+
+
 def main(*, home: Optional[Path] = None, target_path: Optional[Path] = None,
          budget: Optional[BoundedInput] = None) -> None:
     home = Path.home() if home is None else Path(home)
@@ -942,8 +1081,8 @@ def main(*, home: Optional[Path] = None, target_path: Optional[Path] = None,
         try:
             existing_json = budget.json(target_path)
             if isinstance(existing_json, dict) and isinstance(existing_json.get("providers"), dict):
-                existing_providers = {key: value for key, value in existing_json["providers"].items()
-                                      if valid_saved_provider(value)}
+                existing_providers = {key: clean for key, value in existing_json["providers"].items()
+                                      if known_provider_id(key) and (clean := sanitized_provider(value)) is not None}
         except InputFailure:
             raise
         except Exception:
@@ -976,19 +1115,22 @@ def main(*, home: Optional[Path] = None, target_path: Optional[Path] = None,
     if cursor is not None:
         existing_providers["cursor"] = cursor
 
+    existing_providers = {key: clean for key, value in existing_providers.items()
+                          if known_provider_id(key) and (clean := sanitized_provider(value)) is not None}
+    plan = codex["plan_type"]
+    if not isinstance(plan, str) or plan not in {"free", "plus", "pro", "team", "business", "enterprise", "edu"}:
+        plan = None
+
     payload: Dict[str, Any] = {
         "openaiUsedTokens": codex["used_by_period"]["30d"],
         "openaiCostUSD": codex["cost_usd_30d"],
         "openaiUsedByPeriod": codex["used_by_period"],
-        "openaiRawTokensByPeriod": codex["raw_by_period"],
         "openaiServerUsedPercentByPeriod": codex["server_used_pct"],
         "openaiResetAtByPeriod": codex["reset_at_by_period"],
-        "openaiPlanType": codex["plan_type"],
-        "openaiCreditBalance": codex["credit_balance"],
+        "openaiPlanType": plan,
         "geminiUsedTokens": gemini["used_by_period"]["30d"],
         "geminiCostUSD": gemini["cost_usd_30d"],
         "geminiUsedByPeriod": gemini["used_by_period"],
-        "geminiRawTokensByPeriod": gemini["raw_by_period"],
         "providers": existing_providers,
         "detectedProviders": detect_installed_providers(home),
         "source": "local_logs",
@@ -997,9 +1139,13 @@ def main(*, home: Optional[Path] = None, target_path: Optional[Path] = None,
 
     budget.check()
     atomic_write_json(target_path, payload)
-    print(f"[AIMeter] Updated {target_path} from real local logs (mode 0600):")
-    print(json.dumps(payload, indent=2, ensure_ascii=False))
+    print("[AIMeter] Local usage snapshot updated.")
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception:
+        # No traceback, raw path, provider data or exception payload in CLI logs.
+        print("[AIMeter] Local usage refresh failed.", file=sys.stderr)
+        sys.exit(1)

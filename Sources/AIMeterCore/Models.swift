@@ -1,7 +1,7 @@
 import Foundation
 
 // MARK: - Limit Period Type
-public enum LimitPeriod: String, CaseIterable, Codable, Identifiable {
+public enum LimitPeriod: String, CaseIterable, Codable, Identifiable, Sendable {
     case twoHours = "2h"
     case fiveHours = "5h"
     case daily = "1d"
@@ -72,7 +72,7 @@ public struct ServiceBottleneck: Identifiable, Equatable {
     public let iconName: String
     public let remainingPercent: Int
     public let remainingRatio: Double
-    public let bottleneckPeriod: LimitPeriod
+    public let bottleneckPeriod: LimitPeriod?
     public let remainingSource: RemainingQuotaSource
 
     public init(
@@ -82,7 +82,7 @@ public struct ServiceBottleneck: Identifiable, Equatable {
         iconName: String,
         remainingPercent: Int,
         remainingRatio: Double,
-        bottleneckPeriod: LimitPeriod,
+        bottleneckPeriod: LimitPeriod?,
         remainingSource: RemainingQuotaSource = .configuredLimit
     ) {
         self.id = id
@@ -98,22 +98,34 @@ public struct ServiceBottleneck: Identifiable, Equatable {
 
 // MARK: - Per-Period Usage & Limit Snapshot
 public struct PeriodUsageMetric: Equatable, Identifiable {
-    public let period: LimitPeriod
+    public let period: LimitPeriod?
     public var usedTokens: Int
     public var limitTokens: Int
     public var serverUsedPercent: Double?
     public var resetTimestamp: Int?
     public var requiresOfficialQuota: Bool
+    /// Quota services may report a named window without a known duration or token allowance.
+    public var quotaWindowID: String?
+    public var quotaWindowLabel: String?
+    public var isQuotaOnly: Bool
+    public var resetDescription: String?
+    public var quotaExpiresAt: Int?
 
-    public var id: String { period.rawValue }
+    public var id: String { quotaWindowID ?? period?.rawValue ?? "unknown" }
+    public var displayLabel: String { quotaWindowLabel ?? period?.label ?? "利用枠" }
 
     public init(
-        period: LimitPeriod,
+        period: LimitPeriod?,
         usedTokens: Int,
         limitTokens: Int,
         serverUsedPercent: Double? = nil,
         resetTimestamp: Int? = nil,
-        requiresOfficialQuota: Bool = false
+        requiresOfficialQuota: Bool = false,
+        quotaWindowID: String? = nil,
+        quotaWindowLabel: String? = nil,
+        isQuotaOnly: Bool = false,
+        resetDescription: String? = nil,
+        quotaExpiresAt: Int? = nil
     ) {
         self.period = period
         self.usedTokens = usedTokens
@@ -121,6 +133,11 @@ public struct PeriodUsageMetric: Equatable, Identifiable {
         self.serverUsedPercent = serverUsedPercent
         self.resetTimestamp = resetTimestamp
         self.requiresOfficialQuota = requiresOfficialQuota
+        self.quotaWindowID = quotaWindowID
+        self.quotaWindowLabel = quotaWindowLabel
+        self.isQuotaOnly = isQuotaOnly
+        self.resetDescription = resetDescription
+        self.quotaExpiresAt = quotaExpiresAt
     }
 
     private var validatedValues: (limit: Int, remaining: Int, ratio: Double)? {

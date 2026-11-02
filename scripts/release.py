@@ -2,6 +2,7 @@
 """Manual macOS release pipeline. Requires Python 3.9+, Xcode and gh."""
 import argparse
 import hashlib
+import importlib.util
 import json
 from pathlib import Path
 import plistlib
@@ -10,13 +11,21 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import zipfile
 
 
+sys.dont_write_bytecode = True
 REPO = Path(__file__).resolve().parent.parent
+_bundle_spec = importlib.util.spec_from_file_location("aimeter_app_bundle", REPO / "scripts/app_bundle.py")
+bundle_tools = importlib.util.module_from_spec(_bundle_spec)
+_bundle_spec.loader.exec_module(bundle_tools)
 GITHUB_REPO = "TaigaShinohara/AIMeter-public"
-APP_ID = "com.local.AIMeter"
-WIDGET_ID = APP_ID + ".widget"
-ARCHITECTURES = {"arm64", "x86_64"}
+APP_ID = bundle_tools.APP_ID
+WIDGET_ID = bundle_tools.WIDGET_ID
+ARCHITECTURES = bundle_tools.ARCHITECTURES
+WIDGET_SANDBOX = bundle_tools.WIDGET_SANDBOX
+WIDGET_HOME_READ = bundle_tools.WIDGET_HOME_READ
+APP_GROUPS = bundle_tools.APP_GROUPS
 
 
 def run(*args, cwd=None):
@@ -43,91 +52,51 @@ def write_json(path, value):
 
 
 def check_version(version, build_number):
-    if not re.fullmatch(r"(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)", version):
-        raise ValueError("Version must be three numeric components, e.g. 1.1.1.")
-    if not re.fullmatch(r"[1-9]\d*", build_number):
-        raise ValueError("Build number must be a positive integer.")
+    bundle_tools.check_version(version, build_number)
 
 
 def bundles(app):
-    return [app / "Contents/PlugIns/AIMeterWidget.appex", app]
+    return bundle_tools.bundles(app)
 
 
-def verify_bundle(app, version, build_number):
-    for bundle, identifier, executable in (
-        (app, APP_ID, "AIMeter"),
-        (bundles(app)[0], WIDGET_ID, "AIMeterWidgetExtension"),
-    ):
-        with (bundle / "Contents/Info.plist").open("rb") as stream:
-            info = plistlib.load(stream)
-        for key, expected in {
-            "CFBundleIdentifier": identifier,
-            "CFBundleExecutable": executable,
-            "CFBundleShortVersionString": version,
-            "CFBundleVersion": build_number,
-            "LSMinimumSystemVersion": "14.0",
-        }.items():
-            if info.get(key) != expected:
-                raise ValueError("Unexpected bundle metadata: " + key)
-        binary = bundle / "Contents/MacOS" / executable
-        actual = set(run("/usr/bin/lipo", "-archs", binary).split())
-        if actual != ARCHITECTURES:
-            raise ValueError("App and widget must both contain arm64 and x86_64.")
-        minimums = re.findall(r"^\s+minos\s+(\S+)", run(
-            "/usr/bin/xcrun", "vtool", "-show-build", binary), re.MULTILINE)
-        if minimums != ["14.0", "14.0"]:
-            raise ValueError("Both Mach-O slices must target macOS 14.0.")
-        # Reject accidental dependencies on build-machine libraries.
-        for line in run("/usr/bin/otool", "-L", binary).splitlines():
-            dependency = line.strip().split(" (", 1)[0]
-            if line.startswith(("\t", " ")) and " (" in line and not dependency.startswith(
-                    ("/System/Library/", "/usr/lib/")):
-                raise ValueError("Non-system library dependency: " + dependency)
+def widget_contract(source=REPO):
+    return bundle_tools.widget_contract(source)
 
 
-def package_app(source, binaries, app, version, build_number, commit):
-    for bundle, executable, identifier, package_type in (
-        (app, "AIMeter", APP_ID, "APPL"),
-        (bundles(app)[0], "AIMeterWidgetExtension", WIDGET_ID, "XPC!"),
-    ):
-        contents = bundle / "Contents"
-        (contents / "MacOS").mkdir(parents=True)
-        (contents / "Resources").mkdir()
-        shutil.copy2(binaries / executable, contents / "MacOS" / executable)
-        (contents / "MacOS" / executable).chmod(0o755)
-        shutil.copy2(source / "Sources/AIMeter/Resources/AppIcon.icns",
-                     contents / "Resources/AppIcon.icns")
-        info = {
-            "CFBundleExecutable": executable,
-            "CFBundleIdentifier": identifier,
-            "CFBundleName": "AIMeter" if package_type == "APPL" else "AIMeterWidget",
-            "CFBundleDisplayName": "AI Meter",
-            "CFBundleIconFile": "AppIcon",
-            "CFBundlePackageType": package_type,
-            "CFBundleShortVersionString": version,
-            "CFBundleVersion": build_number,
-            "CFBundleSupportedPlatforms": ["MacOSX"],
-            "LSMinimumSystemVersion": "14.0",
-            "AIMeterSourceCommit": commit,
-        }
-        if package_type == "XPC!":
-            info["NSExtension"] = {"NSExtensionPointIdentifier": "com.apple.widgetkit-extension"}
-        else:
-            info.update({
-                "LSUIElement": False,
-                "NSHighResolutionCapable": True,
-                "CFBundleURLTypes": [{
-                    "CFBundleURLName": APP_ID, "CFBundleURLSchemes": ["aimeter"],
-                }],
-            })
-        with (contents / "Info.plist").open("wb") as stream:
-            plistlib.dump(info, stream)
-    # Only allowlisted resources enter the public bundle.
-    shutil.copy2(source / "LICENSE", app / "Contents/Resources/LICENSE")
-    verify_bundle(app, version, build_number)
+def verify_widget_entitlements(app):
+    _, expected = widget_contract()
+    encoded = run("/usr/bin/codesign", "-d", "--entitlements", ":-", bundles(app)[0])
+    try:
+        actual = plistlib.loads(encoded.encode("utf-8"))
+    except (ValueError, TypeError, plistlib.InvalidFileException) as error:
+        raise ValueError("Cannot read signed Widget entitlements.") from error
+    if not isinstance(actual, dict) or actual != expected or actual.get(WIDGET_SANDBOX) is not True:
+        raise ValueError("Signed Widget entitlements do not match the display-cache contract.")
 
 
-def build(output, version, build_number):
+def verify_bundle(app, version, build_number, widget_filename=None, commit=None, update_channel=None):
+    filename = widget_filename or widget_contract()[0]
+    bundle_tools.verify_bundle(app, version, build_number, run, widget_filename=filename,
+                               architectures=ARCHITECTURES, commit=commit, profile="distribution",
+                               update_channel=update_channel)
+
+
+def package_app(source, binaries, app, version, build_number, commit, *, prerelease=False):
+    bundle_tools.package_app(source, binaries, app, version, build_number, commit, run,
+                              architectures=ARCHITECTURES, profile="distribution",
+                              update_channel="development" if prerelease else "stable")
+
+
+def verify_receipt_channel(app, metadata):
+    # A missing channel belongs to the older stable-only release format.
+    channel = metadata.get("update_channel", "stable")
+    with (app / "Contents/Info.plist").open("rb") as stream:
+        embedded = plistlib.load(stream).get("AIMeterUpdateChannel", "stable")
+    if channel not in {"stable", "development"} or embedded != channel:
+        raise ValueError("Bundle update channel does not match the release receipt.")
+
+
+def build(output, version, build_number, *, prerelease=False):
     check_version(version, build_number)
     if output == REPO or REPO in output.parents:
         raise ValueError("Use a new output directory outside the repository.")
@@ -150,9 +119,12 @@ def build(output, version, build_number):
         subprocess.run([str(x) for x in command], cwd=source, check=True,
                        stdout=log, stderr=subprocess.STDOUT)
     binaries = Path(run(*command, "--show-bin-path", cwd=source).strip())
-    package_app(source, binaries, output / "AIMeter.app", version, build_number, commit)
+    package_app(source, binaries, output / "AIMeter.app", version, build_number, commit,
+                prerelease=prerelease)
     write_json(output / "build.json", {
         "version": version, "build_number": build_number, "commit": commit,
+        "update_channel": "development" if prerelease else "stable",
+        "bundle_manifest": bundle_tools.manifest(output / "AIMeter.app"),
     })
     print("Universal bundle built. NOT ready for distribution: run notarize next.")
 
@@ -168,6 +140,7 @@ def check_identity(identity, team):
 
 
 def verify_signature(app, team):
+    bundle_tools.structure(app, signed=True)
     for bundle in bundles(app):
         run("/usr/bin/codesign", "--verify", "--strict", "--verbose=2", bundle)
         # codesign writes its display output to stderr, including on success.
@@ -181,29 +154,29 @@ def verify_signature(app, team):
                 or "Timestamp=" not in details or "runtime" not in details):
             raise ValueError("Missing Developer ID, team, secure timestamp or hardened runtime.")
     run("/usr/bin/codesign", "--verify", "--deep", "--strict", app)
+    verify_widget_entitlements(app)
 
 
 def zip_app(app, archive):
-    run("/usr/bin/ditto", "-c", "-k", "--sequesterRsrc", "--keepParent", app, archive)
+    bundle_tools.zip_app(app, archive)
 
 
 def notarize(output, identity, team, profile):
     check_identity(identity, team)
     metadata = json.loads((output / "build.json").read_text())
     app = output / "AIMeter.app"
-    verify_bundle(app, metadata["version"], metadata["build_number"])
+    verify_bundle(app, metadata["version"], metadata["build_number"], commit=metadata["commit"],
+                  update_channel=metadata.get("update_channel"))
+    verify_receipt_channel(app, metadata)
     receipt = output / "release.json"
     if receipt.exists():
         raise ValueError("This output already has a completed notarization receipt.")
-    # The app does not use App Group containers. Do not request restricted group
-    # entitlements that need a provisioning profile for Developer ID distribution.
+    # Use the checked-in grant only after binding it to the Swift consumer.
+    # App Groups are not used by the sharing code and remain development-only.
+    _, widget_entitlements = widget_contract()
     entitlements = output / "widget-release.entitlements"
     with entitlements.open("wb") as stream:
-        plistlib.dump({
-            "com.apple.security.app-sandbox": True,
-            "com.apple.security.temporary-exception.files.home-relative-path.read-only":
-                ["/.ai_meter_widget.json"],
-        }, stream)
+        plistlib.dump(widget_entitlements, stream)
     for bundle in bundles(app):
         command = ["/usr/bin/codesign", "--force", "--sign", identity,
                    "--options", "runtime", "--timestamp"]
@@ -242,7 +215,8 @@ def notarize(output, identity, team, profile):
     digest = sha256(archive)
     (output / "SHA256SUMS").write_text(f"{digest}  {archive.name}\n")
     write_json(receipt, dict(metadata, team=team, archive=archive.name, sha256=digest,
-                             notarization_id=submission["id"]))
+                             notarization_id=submission["id"],
+                             bundle_manifest=bundle_tools.manifest(app)))
     print("Signed, notarized, stapled and Gatekeeper-verified. Ready for publish.")
 
 
@@ -261,9 +235,13 @@ def validate_release(output):
     # Verify the exact archive to upload, not a separate loose app.
     with tempfile.TemporaryDirectory(prefix="aimeter-release-check-") as temporary:
         root = Path(temporary)
-        run("/usr/bin/ditto", "-x", "-k", archive, root)
-        app = root / "AIMeter.app"
-        verify_bundle(app, metadata["version"], metadata["build_number"])
+        expected = metadata.get("bundle_manifest")
+        if not isinstance(expected, dict):
+            raise ValueError("Release receipt has no verified bundle manifest; rebuild the candidate.")
+        app = bundle_tools.extract_zip(archive, root, expected)
+        verify_bundle(app, metadata["version"], metadata["build_number"], commit=metadata["commit"],
+                      update_channel=metadata.get("update_channel"))
+        verify_receipt_channel(app, metadata)
         with (app / "Contents/Info.plist").open("rb") as stream:
             if plistlib.load(stream).get("AIMeterSourceCommit") != metadata["commit"]:
                 raise ValueError("Archive source commit does not match the receipt.")
@@ -273,8 +251,12 @@ def validate_release(output):
     return metadata
 
 
-def publish(output, validation_notes):
+def publish(output, validation_notes, *, prerelease=False):
     metadata = validate_release(output)
+    expected_channel = "development" if prerelease else "stable"
+    # Legacy receipts predate channels and can only describe stable releases.
+    if metadata.get("update_channel", "stable") != expected_channel:
+        raise ValueError("Release channel does not match the verified build; rebuild for the selected channel.")
     validation = validation_notes.read_text().strip()
     if not validation:
         raise ValueError("Provide the actual launch/Widget/OS verification results and limitations.")
@@ -285,11 +267,16 @@ def publish(output, validation_notes):
     run("git", "fetch", "https://github.com/" + GITHUB_REPO + ".git", "main", cwd=REPO)
     run("git", "merge-base", "--is-ancestor", commit, "FETCH_HEAD", cwd=REPO)
     tag = "v" + metadata["version"]
+    if prerelease:
+        check_version(metadata["version"], metadata["build_number"])
+        tag += "-dev." + metadata["build_number"]
     existing = run("gh", "api", f"repos/{GITHUB_REPO}/git/matching-refs/tags/{tag}")
     if any(ref["ref"] == "refs/tags/" + tag for ref in json.loads(existing)):
         raise ValueError("Release tag already exists; inspect it instead of overwriting.")
     notes = output / "release-notes.md"
-    notes.write_text(
+    channel_note = ("開発版です。安定版の公開前に変更を試すための配布です。\n\n"
+                    if prerelease else "")
+    notes.write_text(channel_note +
         f"macOS 14以降 / Apple Silicon・Intel対応（Universal Binary）。\n\n"
         f"Developer ID署名・Apple公証・公証チケット添付済みです。\n\n"
         f"1. `{metadata['archive']}` をダウンロードして展開します。\n"
@@ -300,16 +287,21 @@ def publish(output, validation_notes):
         f"ソース: `{commit}` / build {metadata['build_number']}\n"
     )
     # Create a draft first. The release becomes public only after asset digests match.
+    title = "AIMeter " + metadata["version"]
+    channel_flags = ["--prerelease", "--latest=false"] if prerelease else []
+    if prerelease:
+        title += " 開発版 (build " + metadata["build_number"] + ")"
     run("gh", "release", "create", tag, str(output / metadata["archive"]),
         str(output / "SHA256SUMS"), "--repo", GITHUB_REPO, "--target", commit,
-        "--title", "AIMeter " + metadata["version"], "--notes-file", notes, "--draft")
+        "--title", title, "--notes-file", notes, "--draft", *channel_flags)
     # Drafts may not have a Git tag yet; the REST by-tag endpoint returns 404.
     # gh release view resolves drafts too, without creating or moving a tag.
     view = ("gh", "release", "view", tag, "--repo", GITHUB_REPO,
-            "--json", "assets,isDraft,url,tagName,targetCommitish")
+            "--json", "assets,isDraft,isPrerelease,url,tagName,targetCommitish")
     remote = json.loads(run(*view))
     if (not remote["isDraft"] or remote["tagName"] != tag
-            or remote["targetCommitish"] != commit):
+            or remote["targetCommitish"] != commit
+            or remote.get("isPrerelease") is not prerelease):
         raise ValueError("Unexpected draft release or source commit; inspect before publishing.")
     expected = {metadata["archive"]: metadata["sha256"],
                 "SHA256SUMS": sha256(output / "SHA256SUMS")}
@@ -317,10 +309,13 @@ def publish(output, validation_notes):
     for name, digest in expected.items():
         if assets.get(name, {}).get("digest") != "sha256:" + digest:
             raise ValueError("Uploaded asset digest not confirmed; release remains a draft.")
-    run("gh", "release", "edit", tag, "--repo", GITHUB_REPO, "--draft=false")
+    run("gh", "release", "edit", tag, "--repo", GITHUB_REPO, "--draft=false", *channel_flags)
     verified = json.loads(run(*view))
     if verified["isDraft"]:
         raise ValueError("Release is still a draft.")
+    if (verified.get("isPrerelease") is not prerelease or verified["tagName"] != tag
+            or verified["targetCommitish"] != commit):
+        raise ValueError("Published release channel or source changed; inspect the release.")
     print(verified["url"])
 
 
@@ -330,6 +325,8 @@ def main():
     build_parser = commands.add_parser("build", help="Build only; never signs or publishes")
     build_parser.add_argument("--version", required=True)
     build_parser.add_argument("--build-number", required=True)
+    build_parser.add_argument("--prerelease", action="store_true",
+                              help="Build a development-channel distribution candidate")
     for subparser in (build_parser,
                       commands.add_parser("notarize", help="Sign, notarize, staple and verify"),
                       commands.add_parser("publish", help="Verify then publish GitHub Release")):
@@ -341,16 +338,18 @@ def main():
         if subparser.prog.endswith(" publish"):
             subparser.add_argument("--validation-notes", required=True, type=Path,
                                    help="Markdown file with actual runtime test results/limitations")
+            subparser.add_argument("--prerelease", action="store_true",
+                                   help="Publish a development prerelease without changing the latest stable release")
     args = parser.parse_args()
     output = args.output.resolve()
     try:
         if args.command == "build":
-            build(output, args.version, args.build_number)
+            build(output, args.version, args.build_number, prerelease=args.prerelease)
         elif args.command == "notarize":
             notarize(output, args.identity, args.team, args.keychain_profile)
         else:
-            publish(output, args.validation_notes)
-    except (ValueError, OSError, KeyError, subprocess.CalledProcessError) as error:
+            publish(output, args.validation_notes, prerelease=args.prerelease)
+    except (ValueError, OSError, KeyError, zipfile.BadZipFile, subprocess.CalledProcessError) as error:
         # Avoid echoing external command output, which may contain authentication details.
         if isinstance(error, subprocess.CalledProcessError):
             print(f"Failed: {Path(error.cmd[0]).name} exited {error.returncode}. "

@@ -144,33 +144,6 @@ public enum UsageParser {
     }
 
     public static func isTrustedExecutable(atPath path: String, currentUID: uid_t = geteuid()) -> Bool {
-        var candidateInfo = Darwin.stat()
-        guard Darwin.lstat(path, &candidateInfo) == 0 else { return false }
-        guard candidateInfo.st_uid == 0 || candidateInfo.st_uid == currentUID else { return false }
-
-        let candidateParent = URL(fileURLWithPath: path).deletingLastPathComponent().path
-        var candidateParentInfo = Darwin.stat()
-        guard Darwin.lstat(candidateParent, &candidateParentInfo) == 0 else { return false }
-        guard (candidateParentInfo.st_mode & S_IFMT) == S_IFDIR else { return false }
-        guard (candidateParentInfo.st_mode & (S_IWGRP | S_IWOTH)) == 0 else { return false }
-        guard candidateParentInfo.st_uid == 0 || candidateParentInfo.st_uid == currentUID else { return false }
-
-        let resolvedURL = URL(fileURLWithPath: path).resolvingSymlinksInPath()
-        let resolvedPath = resolvedURL.path
-        var fileInfo = Darwin.stat()
-        guard Darwin.lstat(resolvedPath, &fileInfo) == 0 else { return false }
-        guard (fileInfo.st_mode & S_IFMT) == S_IFREG else { return false }
-        guard (fileInfo.st_mode & (S_IWGRP | S_IWOTH)) == 0 else { return false }
-        guard fileInfo.st_uid == 0 || fileInfo.st_uid == currentUID else { return false }
-        guard (fileInfo.st_mode & (S_IXUSR | S_IXGRP | S_IXOTH)) != 0 else { return false }
-
-        let parentPath = resolvedURL.deletingLastPathComponent().path
-        var dirInfo = Darwin.stat()
-        guard Darwin.lstat(parentPath, &dirInfo) == 0 else { return false }
-        guard (dirInfo.st_mode & S_IFMT) == S_IFDIR else { return false }
-        guard (dirInfo.st_mode & (S_IWGRP | S_IWOTH)) == 0 else { return false }
-        guard dirInfo.st_uid == 0 || dirInfo.st_uid == currentUID else { return false }
-
-        return FileManager.default.isExecutableFile(atPath: resolvedPath)
+        ExecutableTrust.executable(at: path, currentUID: currentUID) != nil
     }
 }

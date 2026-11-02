@@ -417,7 +417,7 @@ final class AIMeterTests: XCTestCase {
         XCTAssertEqual(snapshot.allServices.map(\.id), ["openai", "gemini"])
         XCTAssertEqual(snapshot.mostCriticalService?.bottleneckPeriod, .weekly)
         XCTAssertEqual(snapshot.mostCriticalService?.remainingPercent, 10)
-        XCTAssertEqual(snapshot.totalCostUSD, 3.30)
+        XCTAssertEqual(snapshot.totalCostUSD, 0)
         XCTAssertEqual(snapshot.updatedAt, date)
     }
 }

@@ -20,13 +20,13 @@ struct HelpView: View {
             id: "qa-1",
             category: "集計・仕組み",
             question: "使用量はどのように集計されていますか？",
-            answer: "AIMeter は外部サーバーを介さず、お使いの Mac 内に各 AI ツール（Cursor, Windsurf, Claude Code, Copilot, Codex, Gemini など）が保存しているローカルセッションログやキャッシュデータベースを安全に直接読み取り、タイムスタンプに基づいて 2時間 / 5時間 / 1日 / 7日 / 30日 ごとに自動合算しています。"
+            answer: "通常は、お使いの Mac 内に各 AI ツール（Cursor, Windsurf, Claude Code, Copilot, Codex, Gemini など）が保存したローカルセッションログやキャッシュデータベースを読み取り、タイムスタンプに基づいて 2時間 / 5時間 / 1日 / 7日 / 30日 ごとに合算します。この集計は Mac 内で行います。任意の OpenAI・GCP 連携を有効にすると、公式 API から取得した利用量も表示に使用します。Antigravity の公式残量は、同じ Mac の起動・ログイン済みアプリから取得します。"
         ),
         QAItem(
             id: "qa-2",
             category: "集計・仕組み",
             question: "ブラウザ版（Web）やスマホでの会話は反映されますか？",
-            answer: "反映されません。AIMeter は Mac ローカル内のファイルのみを集計対象としているため、「その Mac 上のエディタやターミナルで作業した分」のみがメーターに反映されます。※クラウド組織全体の API 利用量を合算したい場合は、設定画面から OpenAI Admin Key や GCP Project ID を登録することで同期可能です。"
+            answer: "ローカルログの集計には、その Mac に保存されたデータだけが反映されます。ブラウザ版やスマホの会話を直接読み取る機能はありません。任意の OpenAI・GCP 連携を有効にした場合は、設定した組織・プロジェクトの API 利用量も表示に使用するため、Mac 以外からの API 利用分が含まれることがあります。"
         ),
         QAItem(
             id: "qa-3",
@@ -38,7 +38,13 @@ struct HelpView: View {
             id: "qa-4",
             category: "セキュリティ",
             question: "コードやプロンプトが外部に送信される心配はありませんか？",
-            answer: "一切ありません。AIMeter のローカルログ集計処理はすべて Mac 内（ローカル完結）で動作しており、生成された集計ファイル (~/.ai_meter_usage.json) もパーミッション 0600（ご自身のアカウントのみ読み書き可能）で保護されています。外部への通信は、ご自身で設定した公式 API キーでの残高取得時のみ行われます。"
+            answer: "AIMeter は、ローカルログ内のコードやプロンプト本文を連携先 API の要求に含めません。ログの集計は Mac 内で行い、集計ファイル (~/.ai_meter_usage.json) はご自身のアカウントだけが読み書きできる権限（0600）で保存します。任意の OpenAI 連携は組織の利用量・費用 API へ、GCP 連携は gcloud のログイン情報を使って Google Cloud Monitoring へ通信します。Antigravity の残量取得は、同じ Mac のアプリとのローカル通信です。"
+        ),
+        QAItem(
+            id: "qa-cloud-credentials",
+            category: "セキュリティ",
+            question: "クラウド連携を停止したり、OpenAI キーを変更するには？",
+            answer: "設定 → サービス連携でサービスをオフにすると、そのサービスのローカルログ収集とクラウド取得を停止します。メニューバーへの表示切替は表示だけを制御します。OpenAI の保存済みキーは Keychain に残ります。旧設定の移行や、この端末の保存済みキーの削除は、連携がオフでも保守操作から行えます。キーは保存と読戻しの確認後だけ使用し、移行に失敗した場合は旧設定を残します。"
         ),
         QAItem(
             id: "qa-5",
@@ -51,6 +57,12 @@ struct HelpView: View {
             category: "使い方",
             question: "メニューバーに表示されるパーセントは何を表していますか？",
             answer: "残量を算出できる枠のうち、残り割合が最も少ない枠を表示します。公式の利用率を取得できた枠はその値、設定した上限から計算する枠は「約」を付けた目安です。公式残量が必要で未取得のサービスは、逼迫順位や0%警告に含めません。"
+        ),
+        QAItem(
+            id: "qa-antigravity-quota",
+            category: "データ",
+            question: "Antigravityの残量を表示するには？",
+            answer: "設定 → サービス連携 → Antigravityを有効にし、Antigravityアプリを起動・ログインした状態で更新してください。AIMeterへの追加ログインは不要で、Antigravityが返すモデル群ごとの残り割合を表示します。トークン数からの推計ではありません。起動していない場合や残量を取得できない場合は未取得とし、2分以上古い値やリセット予定を過ぎた値は使いません。Antigravity内部のローカルAPIを使うため、アプリの更新で取得できなくなる場合があります。Geminiのカードは引き続きログ由来の推定使用量です。"
         ),
         QAItem(
             id: "qa-gemini-quota",
@@ -68,7 +80,7 @@ struct HelpView: View {
             id: "qa-8",
             category: "集計・仕組み",
             question: "複数台の Mac を使っている場合はどうなりますか？",
-            answer: "それぞれの Mac 内にあるログを集計するため、端末ごとの消費量が表示されます。たとえば職場の Mac と自宅の Mac で作業を分担している場合、各 Mac で消費した分がそれぞれの AIMeter で確認できます。"
+            answer: "ローカルログからの集計は各 Mac に保存されたデータが対象です。職場と自宅の Mac で作業を分担した場合、それぞれの端末のログを集計します。任意の OpenAI・GCP 連携の値は、端末別ではなく設定した組織・プロジェクトの API 利用量です。"
         )
     ]
 
@@ -102,14 +114,14 @@ struct HelpView: View {
                     }
                     .font(.system(size: 11.5, weight: .semibold))
                 }
-                .buttonStyle(GlassCapsuleButtonStyle())
+                .buttonStyle(NativeGlassButtonStyle())
 
                 Text("ヘルプ & よくある質問")
                     .font(.system(size: 14, weight: .bold, design: .rounded))
 
                 Spacer()
 
-                LiquidGlassBadge(text: "v1.2 Liquid Glass", icon: "sparkles", tint: .accentColor)
+                LiquidGlassBadge(text: "AIMeter", icon: "sparkles", tint: .accentColor)
             }
 
             // About AIMeter Card
@@ -137,12 +149,14 @@ struct HelpView: View {
             )
 
             // Search Filter
+            Link("お問い合わせ: \(SupportContact.email)", destination: SupportContact.mailURL)
+                .font(.caption)
             HStack(spacing: 7) {
                 Image(systemName: "magnifyingglass")
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
                 TextField("質問やキーワードを検索...", text: $searchText)
-                    .textFieldStyle(.plain)
+                    .textFieldStyle(.roundedBorder)
                     .font(.system(size: 12))
 
                 if !searchText.isEmpty {
@@ -153,14 +167,12 @@ struct HelpView: View {
                             .font(.system(size: 12))
                             .foregroundStyle(.secondary)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(NativeGlassButtonStyle())
+                    .controlSize(.small)
+                    .accessibilityLabel("検索をクリア")
                 }
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 7)
-            .background(
-                FrostedGlassCardBackground(cornerRadius: 9)
-            )
+            .controlSize(.small)
 
             // Q&A List
             ScrollView {
@@ -181,58 +193,43 @@ struct HelpView: View {
             }
             .frame(maxHeight: 340)
         }
+        .liquidGlassGroup()
     }
 
     @ViewBuilder
     private func qaRowView(item: QAItem) -> some View {
-        let isExpanded = expandedQAIds.contains(item.id)
-
-        VStack(alignment: .leading, spacing: 8) {
-            Button {
-                withAnimation(.easeInOut(duration: 0.15)) {
-                    if isExpanded {
-                        expandedQAIds.remove(item.id)
-                    } else {
-                        expandedQAIds.insert(item.id)
-                    }
-                }
-            } label: {
-                HStack(alignment: .top, spacing: 7) {
-                    Text("Q.")
-                        .font(.system(size: 13.5, weight: .bold, design: .rounded))
-                        .foregroundStyle(.tint)
-
-                    Text(item.question)
-                        .font(.system(size: 13.5, weight: .semibold))
-                        .foregroundStyle(.primary)
-                        .multilineTextAlignment(.leading)
-
-                    Spacer()
-
-                    Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundStyle(.secondary)
-                        .padding(.top, 2)
-                }
-                .contentShape(Rectangle())
+        DisclosureGroup(isExpanded: Binding(
+            get: { expandedQAIds.contains(item.id) },
+            set: { expanded in
+                if expanded { expandedQAIds.insert(item.id) }
+                else { expandedQAIds.remove(item.id) }
             }
-            .buttonStyle(.plain)
+        )) {
+            HStack(alignment: .top, spacing: 7) {
+                Text("A.")
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .foregroundStyle(.secondary)
 
-            if isExpanded {
-                HStack(alignment: .top, spacing: 7) {
-                    Text("A.")
-                        .font(.system(size: 13, weight: .bold, design: .rounded))
-                        .foregroundStyle(.secondary)
+                Text(item.answer)
+                    .font(.system(size: 13))
+                    .foregroundStyle(.secondary)
+                    .lineSpacing(3)
+                    .multilineTextAlignment(.leading)
+            }
+            .padding(.top, 2)
+        } label: {
+            HStack(alignment: .top, spacing: 7) {
+                Text("Q.")
+                    .font(.system(size: 13.5, weight: .bold, design: .rounded))
+                    .foregroundStyle(.tint)
 
-                    Text(item.answer)
-                        .font(.system(size: 13))
-                        .foregroundStyle(.secondary)
-                        .lineSpacing(3)
-                        .multilineTextAlignment(.leading)
-                }
-                .padding(.top, 2)
+                Text(item.question)
+                    .font(.system(size: 13.5, weight: .semibold))
+                    .foregroundStyle(.primary)
+                    .multilineTextAlignment(.leading)
             }
         }
+        .disclosureGroupStyle(.automatic)
         .padding(11)
         .background(
             FrostedGlassCardBackground(cornerRadius: 11)
