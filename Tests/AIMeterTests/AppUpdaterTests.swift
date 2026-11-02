@@ -234,11 +234,15 @@ final class AppUpdaterTests: XCTestCase {
     func testPublishedArchiveAndSignatureWhenFixtureIsProvided() async throws {
         let environment = ProcessInfo.processInfo.environment
         guard let archive = environment["AIMETER_UPDATE_TEST_ARCHIVE"], let app = environment["AIMETER_UPDATE_TEST_APP"] else {
-            throw XCTSkip("Set AIMETER_UPDATE_TEST_ARCHIVE and AIMETER_UPDATE_TEST_APP to a compatible signed v1.1.1 fixture; no network or install occurs in this test.")
+            throw XCTSkip("Set AIMETER_UPDATE_TEST_ARCHIVE and AIMETER_UPDATE_TEST_APP to a compatible signed fixture. AIMETER_UPDATE_TEST_VERSION defaults to 1.1.1; set AIMETER_UPDATE_TEST_BUILD for a development build. No network or install occurs in this test.")
         }
+        let version = environment["AIMETER_UPDATE_TEST_VERSION"] ?? "1.1.1"
+        let build = environment["AIMETER_UPDATE_TEST_BUILD"]
+        let tag = "v\(version)" + (build.map { "-dev.\($0)" } ?? "")
+        let assetURL = try XCTUnwrap(URL(string: "https://github.com/TaigaShinohara/AIMeter-public/releases/download/\(tag)/AIMeter-\(version)-macos-universal.zip"))
         let entries = try UpdateArchive.validate(URL(fileURLWithPath: archive))
-        let release = UpdateRelease(version: "1.1.1", build: nil, tag: "v1.1.1",
-                                    asset: .init(url: URL(string: "https://github.com/TaigaShinohara/AIMeter-public/releases/download/v1.1.1/AIMeter-1.1.1-macos-universal.zip")!, size: 1, digest: String(repeating: "a", count: 64)))
+        let release = UpdateRelease(version: version, build: build, tag: tag,
+                                    asset: .init(url: assetURL, size: 1, digest: String(repeating: "a", count: 64)))
         try UpdateInstallation.verify(URL(fileURLWithPath: app), release: release)
         let expanded = FileManager.default.temporaryDirectory.appendingPathComponent("AIMeter-update-fixture-" + UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: expanded, withIntermediateDirectories: false)

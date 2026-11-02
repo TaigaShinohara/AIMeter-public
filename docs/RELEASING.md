@@ -100,6 +100,19 @@ Appleの結果が `Accepted` の場合に限り、公証チケットをappにsta
 `AIMeter-<version>-macos-universal.zip` と `SHA256SUMS` の2ファイルです。
 作業ディレクトリ全体や公証ログ、資格情報はアップロードしません。
 
+公証後は、アプリ内更新が同じ配布ZIPを受け入れることも、設置・起動なしで確認できます。
+開発版の例では期待するversionとbuildを明示します。安定版では `AIMETER_UPDATE_TEST_BUILD` を省きます。
+
+```sh
+AIMETER_UPDATE_TEST_ARCHIVE=/private/tmp/AIMeter-development-1.2.0-build1/AIMeter-1.2.0-macos-universal.zip \
+AIMETER_UPDATE_TEST_APP=/private/tmp/AIMeter-development-1.2.0-build1/AIMeter.app \
+AIMETER_UPDATE_TEST_VERSION=1.2.0 AIMETER_UPDATE_TEST_BUILD=1 \
+swift test -j 2 --filter AppUpdaterTests.testPublishedArchiveAndSignatureWhenFixtureIsProvided
+```
+
+この検証は実ZIPの安全な展開、署名、版・channel、旧版として退避できる構造を確認します。
+実際の更新操作・再起動・WidgetKitの動作確認とは別です。
+
 エラー時は処理が停止します。Appleから拒否された場合は `notary-result.json` のsubmission IDを使い、
 `xcrun notarytool log <ID> --keychain-profile AIMeter-notary` で原因を確認してください。
 待機は最大20分です。タイムアウト時はApple側で処理中の可能性があるため、状態を確認してから再実行します。
