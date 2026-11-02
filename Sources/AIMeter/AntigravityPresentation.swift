@@ -35,7 +35,7 @@ extension UsageMonitor {
     func refreshAntigravityQuota(
         fetch: () async throws -> AntigravityQuotaSnapshot = { try await AntigravityQuotaClient.fetch() }
     ) async {
-        guard showAntigravitySection else {
+        guard !requiresCollectionIntroduction, showAntigravitySection else {
             antigravityQuota = nil
             return
         }

@@ -15,8 +15,8 @@ import zipfile
 APP_ID = "com.local.AIMeter"
 WIDGET_ID = APP_ID + ".widget"
 ARCHITECTURES = {"arm64", "x86_64"}
-APP_VERSION = "1.1.1"
-LOCAL_BUILD_NUMBER = "22"
+APP_VERSION = "1.2.0"
+LOCAL_BUILD_NUMBER = "1"
 WIDGET_SANDBOX = "com.apple.security.app-sandbox"
 WIDGET_HOME_READ = "com.apple.security.temporary-exception.files.home-relative-path.read-only"
 APP_GROUPS = "com.apple.security.application-groups"
