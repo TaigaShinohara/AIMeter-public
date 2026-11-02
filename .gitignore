@@ -5,6 +5,7 @@
 *.zip
 *.xcodeproj
 xcuserdata/
+
 __pycache__/
 *.py[cod]
 .env

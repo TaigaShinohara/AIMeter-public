@@ -7,6 +7,41 @@ import AIMeterCore
 /// Scans local AI tool sessions and storage directly on macOS with zero external Python dependency.
 enum LocalUsageCollector {
 
+    private static let builtInProviderIDs: Set<String> = ["openai", "gemini", "antigravity", "claude", "grokbot", "copilot", "windsurf", "cursor", "trae"]
+
+    static func baseProviderID(_ id: String) -> String {
+        let lower = id.lowercased()
+        let base = lower.split(separator: "_", maxSplits: 1).first.map(String.init) ?? lower
+        if base == "codex" { return "openai" }
+        return builtInProviderIDs.contains(base) ? base : lower
+    }
+
+    /// Source labels are presentation data, not a channel for arbitrary cached text.
+    static func safePlan(_ raw: String?, provider: String) -> String {
+        let value = raw.map { $0.utf8.count <= 128 ? $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() : "unknown" } ?? ""
+        switch provider {
+        case "openai":
+            return ["free", "go", "plus", "pro", "team", "business", "enterprise", "edu"].contains(value) ? value : "unknown"
+        case "claude":
+            if ["5x", "max_5x", "max (5x)", "default_claude_max_5x"].contains(value) { return "Max (5x)" }
+            if ["20x", "max_20x", "max (20x)", "default_claude_max_20x"].contains(value) { return "Max (20x)" }
+            return value.isEmpty || value == "not_max" || value == "pro" ? "Pro" : "Claude"
+        case "grokbot":
+            let names = ["supergrok": "SuperGrok", "supergrok heavy": "SuperGrok Heavy", "free": "Free", "premium": "Premium", "premium+": "Premium+"]
+            return names[value] ?? "Grok Bot"
+        case "windsurf":
+            let names = ["free": "Free", "pro": "Pro", "teams": "Teams", "enterprise": "Enterprise", "trial": "Trial", "pro ultimate": "Pro Ultimate"]
+            let plan = value.hasPrefix("windsurf ") ? String(value.dropFirst(9)) : value
+            return names[plan].map { "Windsurf " + $0 } ?? "Windsurf"
+        case "cursor": return "Pro / Agent"
+        case "copilot": return "Premium Reqs"
+        case "gemini": return "Gemini"
+        case "antigravity": return "Antigravity"
+        case "trae": return "Trae"
+        default: return raw ?? ""
+        }
+    }
+
     static let targetURL: URL = {
         FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".ai_meter_usage.json")
     }()
@@ -61,6 +96,8 @@ enum LocalUsageCollector {
     // MARK: - Main Entrypoint
     @discardableResult
     static func collectAndSave(targetFileURL: URL? = nil, customPaths: [String: String] = [:],
+                               enabledProviderIDs: Set<String>? = nil,
+                               commitPermit: IntegrationPermit? = nil,
                                home: URL = FileManager.default.homeDirectoryForCurrentUser,
                                limits: BoundedInput.Limits = .init()) async throws -> LocalUsageData {
         let now = Date()
@@ -70,65 +107,84 @@ enum LocalUsageCollector {
         // Run collector on utility queue
         let worker = Task.detached(priority: .utility) {
             let input = BoundedInput(limits: limits)
+            let enabledIDs = enabledProviderIDs.map { Set($0.map(baseProviderID)) }
+            func enabled(_ id: String) -> Bool { enabledIDs?.contains(baseProviderID(id)) ?? true }
             var existingProviders: [String: CustomProviderUsageJSON] = [:]
-            if let existingData = try input.dataIfPresent(at: destination),
+            if enabledIDs?.isEmpty != true,
+               let existingData = try input.dataIfPresent(at: destination),
                let existingRoot = try? JSONSerialization.jsonObject(with: existingData) as? [String: Any],
                let provs = existingRoot["providers"] as? [String: Any] {
                 let decoder = JSONDecoder()
                 for (k, v) in provs {
+                    let base = baseProviderID(k)
+                    // Native providers have one canonical result. Old clone
+                    // cache rows must not override that result after an OFF.
+                    guard enabled(k), !builtInProviderIDs.contains(base) || k.lowercased() == base else { continue }
                     // Foundation raises an Objective-C exception for scalars;
                     // Swift's try? cannot catch it. Preserve valid providers
                     // independently when another saved provider is malformed.
                     if let object = v as? [String: Any],
                        let d = try? JSONSerialization.data(withJSONObject: object),
                        let parsed = try? decoder.decode(CustomProviderUsageJSON.self, from: d) {
-                        existingProviders[k] = parsed
+                        var safe = parsed
+                        if safe.status != nil, builtInProviderIDs.contains(base) {
+                            safe.status = safePlan(safe.status, provider: base)
+                        }
+                        existingProviders[builtInProviderIDs.contains(base) ? base : k] = safe
                     }
                 }
             }
 
-            let codex = try collectCodex(now: now, cutoffs: cutoffs, customPath: customPaths["openai"] ?? customPaths["codex"], home: home, input: input)
-            let gemini = try collectGemini(now: now, cutoffs: cutoffs, customPath: customPaths["gemini"], home: home, input: input)
-            let claude = try collectClaude(now: now, cutoffs: cutoffs, customPath: customPaths["claude"], home: home, input: input)
-            let grok = try collectGrokBot(now: now, cutoffs: cutoffs, customPath: customPaths["grokbot"], home: home, input: input)
-            let copilot = try collectCopilot(now: now, cutoffs: cutoffs, customPath: customPaths["copilot"], home: home, input: input)
-            let windsurf = try collectWindsurf(customPath: customPaths["windsurf"], home: home, input: input)
-            let cursor = try collectCursor(now: now, cutoffs: cutoffs, customPath: customPaths["cursor"], home: home, input: input)
+            let codex = try (enabled("openai") ? collectCodex(now: now, cutoffs: cutoffs, customPath: customPaths["openai"] ?? customPaths["codex"], home: home, input: input) : nil)
+            let gemini = try (enabled("gemini") ? collectGemini(now: now, cutoffs: cutoffs, customPath: customPaths["gemini"], home: home, input: input) : nil)
+            let claude = try (enabled("claude") ? collectClaude(now: now, cutoffs: cutoffs, customPath: customPaths["claude"], home: home, input: input) : nil)
+            let grok = try (enabled("grokbot") ? collectGrokBot(now: now, cutoffs: cutoffs, customPath: customPaths["grokbot"], home: home, input: input) : nil)
+            let copilot = try (enabled("copilot") ? collectCopilot(now: now, cutoffs: cutoffs, customPath: customPaths["copilot"], home: home, input: input) : nil)
+            let windsurf = try (enabled("windsurf") ? collectWindsurf(customPath: customPaths["windsurf"], home: home, input: input) : nil)
+            let cursor = try (enabled("cursor") ? collectCursor(now: now, cutoffs: cutoffs, customPath: customPaths["cursor"], home: home, input: input) : nil)
 
-            existingProviders["claude"] = claude
+            if let claude { existingProviders["claude"] = claude }
             if let grok { existingProviders["grokbot"] = grok }
             if let copilot { existingProviders["copilot"] = copilot }
             if let windsurf { existingProviders["windsurf"] = windsurf }
             if let cursor { existingProviders["cursor"] = cursor }
 
-            var detected = detectInstalledProviders(home: home)
-            for (pid, cp) in customPaths where !cp.isEmpty {
-                if !detected.contains(pid) {
-                    detected.append(pid)
+            var detected = detectInstalledProviders(home: home, enabledProviderIDs: enabledIDs)
+            for (pid, cp) in customPaths where !cp.isEmpty && enabled(pid) {
+                let providerID = baseProviderID(pid)
+                if !detected.contains(providerID) {
+                    detected.append(providerID)
                 }
             }
 
             let isoNow = isoFormatterStandard.string(from: now)
             let payload = LocalUsageData(
-                openaiUsedTokens: codex.used.monthly ?? 0,
-                openaiCostUSD: codex.cost,
-                geminiUsedTokens: gemini.used.monthly ?? 0,
-                geminiCostUSD: gemini.cost,
-                openaiUsedByPeriod: codex.used,
-                geminiUsedByPeriod: gemini.used,
-                openaiServerUsedPercentByPeriod: codex.serverPct,
-                openaiResetAtByPeriod: codex.resetAt,
-                openaiPlanType: codex.planType,
-                openaiCreditBalance: codex.creditBalance,
+                openaiUsedTokens: codex.map { $0.used.monthly ?? 0 },
+                openaiCostUSD: codex?.cost,
+                geminiUsedTokens: gemini.map { $0.used.monthly ?? 0 },
+                geminiCostUSD: gemini?.cost,
+                openaiUsedByPeriod: codex?.used,
+                geminiUsedByPeriod: gemini?.used,
+                openaiServerUsedPercentByPeriod: codex?.serverPct,
+                openaiResetAtByPeriod: codex?.resetAt,
+                openaiPlanType: codex?.planType,
+                openaiCreditBalance: nil,
                 providers: existingProviders,
                 detectedProviders: detected,
                 source: "local_logs_native",
                 updatedAt: isoNow
             )
 
-            try input.check()
             try payload.validateNumbers()
-            try saveAtomically(payload: payload, to: destination)
+            if let commitPermit {
+                try commitPermit.withPermission {
+                    try input.check()
+                    try saveAtomically(payload: payload, to: destination)
+                }
+            } else {
+                try input.check()
+                try saveAtomically(payload: payload, to: destination)
+            }
             return payload
         }
         return try await withTaskCancellationHandler {
@@ -148,7 +204,9 @@ enum LocalUsageCollector {
         do {
             return try scanPath(providerId: providerId, path: path, home: home, input: BoundedInput(limits: limits))
         } catch {
-            return ProviderPathScanResult(isValid: false, message: error is CancellationError ? "検証を中止しました" : error.localizedDescription,
+            let message = error is CancellationError ? "検証を中止しました"
+                : (error as? BoundedInput.Failure)?.errorDescription ?? "対象ログを読み込めませんでした。場所とアクセス権を確認してください"
+            return ProviderPathScanResult(isValid: false, message: message,
                                           previewCount: 0, statusNote: nil)
         }
     }
@@ -332,7 +390,7 @@ enum LocalUsageCollector {
         var resetAtDict: [String: Int] = [:]
 
         if let rl = latestRL {
-            planType = rl["plan_type"] as? String
+            planType = rl["plan_type"].map { _ in safePlan(rl["plan_type"] as? String, provider: "openai") }
             if let creds = rl["credits"] as? [String: Any], let rawBalance = creds["balance"] {
                 creditBalance = try UsageNumber.nonnegative(rawBalance)
             }
@@ -617,7 +675,7 @@ enum LocalUsageCollector {
         if let cData,
            let cObj = try? JSONSerialization.jsonObject(with: cData) as? [String: Any] {
             if let tier = cObj["claudeMaxTier"] as? String, tier != "not_max" {
-                statusLabel = "Max (\(tier))"
+                statusLabel = safePlan(tier, provider: "claude")
             }
             if usedCounts["30d"] == 0, let projDict = cObj["projects"] as? [String: Any] {
                 var totEff = 0
@@ -686,14 +744,15 @@ enum LocalUsageCollector {
         if hasAppSupport {
             for fp in try input.files(at: appSupport) where fp.pathExtension == "blob" {
                 let fn = fp.lastPathComponent
+                let b32 = fn.replacingOccurrences(of: ".blob", with: "").uppercased()
+                let decKey = decodeBase32(b32)
+                guard decKey.contains("weekly-usage.cache") || decKey.contains("transcript.replicas.") else { continue }
                 let data = try input.data(at: fp)
                 guard
                       let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                       let val = root["value"] as? [String: Any] else { continue }
 
                 // Base32 key decode to detect cache type
-                let b32 = fn.replacingOccurrences(of: ".blob", with: "").uppercased()
-                let decKey = decodeBase32(b32)
 
                 if decKey.contains("weekly-usage.cache") {
                     if let reading = val["reading"] as? [String: Any],
@@ -711,7 +770,7 @@ enum LocalUsageCollector {
                             costUSD = max(costUSD, round((cents / 100.0) * 100) / 100.0)
                         }
                         if let lbl = usage["grokPlanLabel"] as? String, !lbl.isEmpty {
-                            planLabel = lbl
+                            planLabel = safePlan(lbl, provider: "grokbot")
                         }
                     }
                 } else if decKey.contains("transcript.replicas.") {
@@ -804,7 +863,7 @@ enum LocalUsageCollector {
             throw BoundedInput.Failure.database
         }
 
-        let planName = (info["planName"] as? String) ?? "Pro"
+        let planName = safePlan(info["planName"] as? String, provider: "windsurf")
         let usage = (info["usage"] as? [String: Any]) ?? [:]
         let usedMsgs = try UsageNumber.count(usage["usedMessages"])
         let totalMsgs = try UsageNumber.count(usage["messages"], default: 50000)
@@ -827,7 +886,7 @@ enum LocalUsageCollector {
             serverUsedPercentByPeriod: serverPctJSON,
             resetAtByPeriod: nil,
             costUSD: 0.0,
-            status: "Windsurf \(planName)"
+            status: planName
         )
     }
 
@@ -968,7 +1027,8 @@ enum LocalUsageCollector {
     }
 
     // MARK: - Installed Providers Detection
-    static func detectInstalledProviders(home: URL = FileManager.default.homeDirectoryForCurrentUser) -> [String] {
+    static func detectInstalledProviders(home: URL = FileManager.default.homeDirectoryForCurrentUser,
+                                         enabledProviderIDs: Set<String>? = nil) -> [String] {
         var detected: [String] = []
         let appSupport = home.appendingPathComponent("Library/Application Support")
 
@@ -982,6 +1042,7 @@ enum LocalUsageCollector {
         ]
 
         for (pid, paths) in checks {
+            guard enabledProviderIDs?.contains(baseProviderID(pid)) ?? true else { continue }
             if paths.contains(where: { FileManager.default.fileExists(atPath: $0.path) }) {
                 detected.append(pid)
             }

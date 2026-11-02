@@ -59,6 +59,27 @@ enum KeychainHelper {
         return true
     }
 
+    /// Migration may create an absent item, but must not overwrite a saved item
+    /// that appeared after the caller's read. Duplicate-item failures retain the
+    /// older source so the caller can retry without losing either value.
+    @discardableResult
+    static func addIfAbsent(key: String, value: String, operations: Operations = .live) -> Bool {
+        guard !value.isEmpty, let data = value.data(using: .utf8) else { return false }
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: key,
+            kSecValueData as String: data,
+            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock
+        ]
+        let status = operations.add(query)
+        guard status == errSecSuccess else {
+            print("[AIMeter] Keychain migration SecItemAdd failed with OSStatus \(status)")
+            return false
+        }
+        return true
+    }
+
     /// The caller may clear legacy preferences only after a successful read/save.
     static func restore(key: String, legacyValue: String, operations: Operations = .live)
         -> (value: String?, canClearLegacy: Bool) {
@@ -72,7 +93,11 @@ enum KeychainHelper {
             return (legacyValue.isEmpty ? nil : legacyValue, false)
         }
         guard !legacyValue.isEmpty else { return (nil, false) }
-        return (legacyValue, save(key: key, value: legacyValue, operations: operations))
+        guard addIfAbsent(key: key, value: legacyValue, operations: operations) else {
+            return (legacyValue, false)
+        }
+        let (confirmedStatus, confirmedData) = read(key: key, operations: operations)
+        return (legacyValue, confirmedStatus == errSecSuccess && confirmedData == Data(legacyValue.utf8))
     }
 
     static func load(key: String, operations: Operations = .live) -> String? {
@@ -81,7 +106,9 @@ enum KeychainHelper {
         return String(data: data, encoding: .utf8)
     }
 
-    private static func read(key: String, operations: Operations) -> (OSStatus, Data?) {
+    // Keep the same query for callers that must distinguish absence from a
+    // locked, denied or malformed saved item before deciding to migrate.
+    static func read(key: String, operations: Operations) -> (OSStatus, Data?) {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,

@@ -4,6 +4,7 @@
 
 脆弱性の可能性がある場合は、公開Issueではなく、このリポジトリの
 **Security → Report a vulnerability** から非公開で報告してください。
+代替の連絡先は [deeple+aimeterstaff@inkboxmail.com](mailto:deeple+aimeterstaff@inkboxmail.com) です。
 
 対象コミット、macOSのバージョン、再現手順、想定される影響を記載してください。
 再現用データには合成データを使い、実際のプロンプト、個人ログ、APIキー、

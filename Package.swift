@@ -8,12 +8,34 @@ let package = Package(
     ],
     products: [
         .executable(name: "AIMeter", targets: ["AIMeter"]),
-        .library(name: "AIMeterCore", targets: ["AIMeterCore"])
+        .library(name: "AIMeterCore", targets: ["AIMeterCore"]),
+        .executable(name: "AIMeterWidgetQAHost", targets: ["AIMeterWidgetQAHost"]),
+        .executable(name: "AIMeterWidgetQAExtension", targets: ["AIMeterWidgetQAExtension"])
     ],
     targets: [
         .target(
             name: "AIMeterCore",
             path: "Sources/AIMeterCore"
+        ),
+        .target(
+            name: "AIMeterWidgetUI",
+            dependencies: ["AIMeterCore"],
+            path: "Sources/AIMeterWidgetUI"
+        ),
+        .target(
+            name: "AIMeterWidgetFixtures",
+            dependencies: ["AIMeterCore"],
+            path: "Sources/AIMeterWidgetFixtures"
+        ),
+        .executableTarget(
+            name: "AIMeterWidgetQAHost",
+            path: "Sources/AIMeterWidgetQAHost"
+        ),
+        .executableTarget(
+            name: "AIMeterWidgetQAExtension",
+            dependencies: ["AIMeterCore", "AIMeterWidgetUI", "AIMeterWidgetFixtures"],
+            path: "Sources/AIMeterWidgetQAExtension",
+            linkerSettings: [.unsafeFlags(["-Xlinker", "-e", "-Xlinker", "_NSExtensionMain"])]
         ),
         .executableTarget(
             name: "AIMeter",
@@ -25,7 +47,7 @@ let package = Package(
         ),
         .executableTarget(
             name: "AIMeterWidgetExtension",
-            dependencies: ["AIMeterCore"],
+            dependencies: ["AIMeterCore", "AIMeterWidgetUI"],
             path: "Sources/AIMeterWidgetExtension",
             linkerSettings: [
                 .unsafeFlags([
@@ -38,6 +60,11 @@ let package = Package(
             name: "AIMeterTests",
             dependencies: ["AIMeter", "AIMeterCore"],
             path: "Tests/AIMeterTests"
+        ),
+        .testTarget(
+            name: "AIMeterWidgetUITests",
+            dependencies: ["AIMeterWidgetUI", "AIMeterCore"],
+            path: "Tests/AIMeterWidgetUITests"
         )
     ]
 )

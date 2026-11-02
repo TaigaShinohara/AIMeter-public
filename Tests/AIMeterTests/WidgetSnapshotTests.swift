@@ -135,7 +135,7 @@ final class WidgetSnapshotTests: XCTestCase {
         )
         let data = try JSONEncoder().encode(snapshot)
         let original = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
-        for (key, value) in [("schemaVersion", 3 as Any), ("totalCostUSD", -1),
+        for (key, value) in [("schemaVersion", 5 as Any),
                              ("updatedAt", "invalid"), ("hasData", false),
                              ("showUsageAmounts", "invalid"),
                              ("allServices", [] as [Any])] {
@@ -157,9 +157,9 @@ final class WidgetSnapshotTests: XCTestCase {
             services: [try item()], totalCostUSD: 2, updatedAt: updatedAt, hasData: true
         )
         try SharedStore.saveWidgetSnapshot(previous, to: cache)
-        let invalid = AIMeterWidgetSnapshot.make(
-            services: [try item()], totalCostUSD: -1, updatedAt: updatedAt, hasData: true
-        )
+        let invalid = AIMeterWidgetSnapshot(mostCriticalService: nil, topServices: previous.topServices,
+                                           allServices: previous.allServices, totalCostUSD: 0,
+                                           updatedAt: updatedAt, hasData: true)
         XCTAssertThrowsError(try SharedStore.saveWidgetSnapshot(invalid, to: cache))
         XCTAssertEqual(SharedStore.loadWidgetSnapshot(from: cache), previous)
 
@@ -240,7 +240,7 @@ final class WidgetSnapshotTests: XCTestCase {
             updatedAt: updatedAt, hasData: true
         )
         XCTAssertEqual(official.remainingSource.percentText(official.remainingPercent), "10%")
-        XCTAssertEqual(mixed.schemaVersion, 2)
+        XCTAssertEqual(mixed.schemaVersion, 4)
         XCTAssertEqual(mixed.allServices.map(\.id), ["openai", "cursor", "gemini"])
         XCTAssertEqual(mixed.topServices, mixed.allServices)
         XCTAssertEqual(mixed.mostCriticalService?.id, "openai")
@@ -270,17 +270,17 @@ final class WidgetSnapshotTests: XCTestCase {
         try JSONSerialization.data(withJSONObject: legacy).write(to: cache)
 
         let migrated = SharedStore.loadWidgetSnapshot(from: cache)
-        XCTAssertEqual(migrated.schemaVersion, 2)
+        XCTAssertEqual(migrated.schemaVersion, 4)
         XCTAssertTrue(migrated.hasData)
         XCTAssertTrue(migrated.updateFailed)
         XCTAssertFalse(migrated.showUsageAmounts)
         XCTAssertEqual(migrated.updatedAt, updatedAt)
-        XCTAssertEqual(migrated.totalCostUSD, 2.75)
+        XCTAssertEqual(migrated.totalCostUSD, 0)
         XCTAssertEqual(migrated.mostCriticalService?.id, "cursor")
         XCTAssertEqual(migrated.allServices.map(\.id), ["cursor", "gemini"])
         XCTAssertEqual(migrated.topServices, migrated.allServices)
         XCTAssertEqual(migrated.allServices.last?.remainingSource, .unavailable)
-        XCTAssertEqual(migrated.allServices.last?.usedTokens, 90)
+        XCTAssertEqual(migrated.allServices.last?.usedTokens, 0)
         XCTAssertEqual(migrated.allServices.first?.remainingSource, .configuredLimit)
         try SharedStore.saveWidgetSnapshot(migrated, to: cache)
         XCTAssertEqual(SharedStore.loadWidgetSnapshot(from: cache), migrated)

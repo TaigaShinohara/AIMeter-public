@@ -118,7 +118,7 @@ struct SetupWizardView: View {
                         Image(systemName: "questionmark.circle")
                             .font(.system(size: 14))
                     }
-                    .buttonStyle(GlassCapsuleButtonStyle())
+                    .buttonStyle(NativeGlassButtonStyle())
                     .help("ヘルプ・Q&Aを見る")
                 }
 
@@ -140,7 +140,7 @@ struct SetupWizardView: View {
                     }
                     .font(.system(size: 13, weight: .medium))
                 }
-                .buttonStyle(GlassCapsuleButtonStyle())
+                .buttonStyle(NativeGlassButtonStyle())
                 .disabled(isScanning)
             }
 
@@ -184,11 +184,12 @@ struct SetupWizardView: View {
                     monitor.hasCompletedSetupWizard = true
                     onComplete()
                 }
-                .buttonStyle(GlassCapsuleButtonStyle(isProminent: true))
+                .buttonStyle(NativeGlassButtonStyle(isProminent: true))
                 .font(.system(size: 14, weight: .semibold))
                 .keyboardShortcut(.defaultAction)
             }
         }
+        .liquidGlassGroup()
         .padding(18)
         .frame(width: 530)
         .background(LiquidGlassBackground(cornerRadius: 20))
@@ -270,7 +271,7 @@ struct SetupWizardView: View {
                     }
                     .font(.system(size: 11.5))
                 }
-                .buttonStyle(GlassCapsuleButtonStyle(isSelected: customPath != nil))
+                .buttonStyle(NativeGlassButtonStyle(isSelected: customPath != nil))
             }
 
             // Inline Path Picker Expansion
@@ -358,7 +359,7 @@ struct SetupWizardView: View {
                     }
                     .font(.system(size: 11.5))
                 }
-                .buttonStyle(GlassCapsuleButtonStyle(isSelected: customPath != nil))
+                .buttonStyle(NativeGlassButtonStyle(isSelected: customPath != nil))
 
                 Button {
                     monitor.removeSubscription(id: sub.id)
@@ -368,7 +369,7 @@ struct SetupWizardView: View {
                         .font(.system(size: 13))
                         .foregroundStyle(.secondary)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(NativeGlassButtonStyle())
             }
 
             if isExpanded {
@@ -402,6 +403,7 @@ struct SetupWizardView: View {
             }
             .controlSize(.small)
             .font(.system(size: 12))
+            .buttonStyle(NativeGlassButtonStyle())
 
             // Custom New Service Toggle
             Button {
@@ -416,7 +418,7 @@ struct SetupWizardView: View {
                         .font(.system(size: 13, weight: .medium))
                 }
             }
-            .buttonStyle(.plain)
+            .buttonStyle(NativeGlassButtonStyle(isSelected: showNewServiceForm))
             .padding(.top, 2)
 
             if showNewServiceForm {
@@ -425,8 +427,8 @@ struct SetupWizardView: View {
         }
         .padding(12)
         .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(Color.primary.opacity(0.02))
+            LiquidGlassSurface(shape: RoundedRectangle(cornerRadius: 8, style: .continuous),
+                               fallbackFill: Color.primary.opacity(0.02))
                 .overlay(
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
                         .strokeBorder(Color.primary.opacity(0.08), style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
@@ -538,7 +540,7 @@ struct SetupWizardView: View {
                         await monitor.refresh()
                     }
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(NativeGlassButtonStyle(isProminent: true))
                 .controlSize(.regular)
                 .disabled(newServiceName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
@@ -568,7 +570,7 @@ struct SetupWizardView: View {
                     validateAndApply(for: serviceId, path: customPathInput)
                 }
                 .controlSize(.small)
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(NativeGlassButtonStyle(isProminent: true))
 
                 if monitor.customProviderPaths[serviceId] != nil {
                     Button("リセット") {
@@ -602,8 +604,7 @@ struct SetupWizardView: View {
         }
         .padding(10)
         .background(
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .fill(Color.primary.opacity(0.04))
+            LiquidGlassSurface(shape: RoundedRectangle(cornerRadius: 6, style: .continuous))
         )
     }
 
@@ -615,8 +616,7 @@ struct SetupWizardView: View {
             .padding(.horizontal, 6)
             .padding(.vertical, 2)
             .background(
-                Capsule()
-                    .fill(color.opacity(0.12))
+                LiquidGlassSurface(shape: Capsule(), fallbackFill: color.opacity(0.12))
             )
     }
 

@@ -3,7 +3,7 @@ import SwiftUI
 
 /// AIMeter's own text badges, not service logos or third-party artwork.
 public enum ServiceIdentity: String, CaseIterable {
-    case openai, gemini, claude, cursor, windsurf, copilot, grokbot
+    case openai, gemini, antigravity, claude, cursor, windsurf, copilot, grokbot
     case devin, perplexity, deepseek, poe, trae
 
     public init?(serviceID: String) {
@@ -18,6 +18,7 @@ public enum ServiceIdentity: String, CaseIterable {
         switch self {
         case .openai: return "OA"
         case .gemini: return "GE"
+        case .antigravity: return "AG"
         case .claude: return "CL"
         case .cursor: return "CU"
         case .windsurf: return "WS"
