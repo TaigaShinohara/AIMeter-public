@@ -6,7 +6,7 @@ Codex、Gemini / Antigravity、Claude Code、Grok Bot、GitHub Copilot、Windsur
 
 ## 公開内容と環境
 
-このリポジトリはMIT Licenseでソースコードを公開しています。署名・公証済みのアプリはまだ配布していません。GitHubの「Source code」ZIPはアプリ本体ではないため、利用するにはソースコードからビルドしてください。
+このリポジトリはMIT Licenseでソースコードを公開しています。署名・公証済みアプリの配布Releaseは準備中です。公開されるまではソースコードからビルドしてください。
 
 - 実行対象：macOS 14以降
 - ビルド：macOS 27 SDKを含むXcode（新しいSwiftUI APIを参照）
@@ -15,6 +15,22 @@ Codex、Gemini / Antigravity、Claude Code、Grok Bot、GitHub Copilot、Windsur
 - 通常のアプリ動作にPythonは不要
 
 Apple Siliconの合成データによるテストと、実際の配布候補の動作確認は別です。新規macOSユーザーでの初回起動・設定・Widget実表示、Intel実機・macOS 14、任意APIの実接続については、各確認結果を個別に扱います。ソースの公開は、これらの確認や配布アプリの公開を意味しません。
+
+## アプリの入手・導入
+
+配布Releaseの公開後は、次の手順で導入できます。Xcode・Python・GitHub CLIは不要です。
+
+1. [GitHub Releases](https://github.com/TaigaShinohara/AIMeter-public/releases) を開き、利用する版の「動作確認の範囲」と既知の制限を確認します。`Pre-release` 表示のある版は開発版です。
+2. **Assets** の `AIMeter-<version>-macos-universal.zip` をダウンロードして展開します。GitHubが生成する「Source code」はアプリ本体ではありません。
+3. `AIMeter.app` をアプリケーションフォルダへ移動し、Finderから開きます。
+4. 初回の説明を読み、集計するCodex・Geminiを選んで「選んだサービスで使い始める」を押します。開始するまではログを読み取りません。他のサービスは「設定 → サービス連携」から追加でき、API連携は任意です。既存利用者の更新では、これまでの設定を引き継ぎます。
+5. macOSのウィジェット編集でAIMeterを追加します。小・中・大に対応し、本体の「今すぐ更新」後も表示の反映時刻はmacOSが調整します。
+
+導入時の確認や更新方法は [配布・導入ガイド](DISTRIBUTION_GUIDE.md) にあります。
+
+初回の説明画面（個人ログを使わない合成プレビュー）：
+
+![AIMeterの初回説明とサービス選択](docs/images/first-launch.png)
 
 ## ビルドとテスト
 
@@ -38,7 +54,7 @@ PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s Tests -p 'test_*.py' -
 
 毎回新しい `.build/local-packages` 配下へローカル用アプリとZIPを生成し、設置・起動・Widget登録は行いません。署名IDがない場合はad-hoc署名を使います。ローカル用ZIPは、署名・公証済みの配布物ではありません。
 
-`./run.sh`、`make run`、`Launch AIMeter.command` は必要に応じてビルドし、アプリを設置・起動します。設置を避ける場合は `AIMETER_INSTALL_TO_APPLICATIONS=0 ./run.sh` を使います。起動したアプリは通常のログ収集を行うため、テスト実行とは区別してください。
+`./run.sh`、`make run`、`Launch AIMeter.command` は必要に応じてビルドし、アプリを設置・起動します。設置を避ける場合は `AIMETER_INSTALL_TO_APPLICATIONS=0 ./run.sh` を使います。起動後は初回の開始操作または保存済み設定に基づいてログ収集を行うため、テスト実行とは区別してください。
 
 詳しくは [配布・導入ガイド](DISTRIBUTION_GUIDE.md)、開発に参加する場合は [CONTRIBUTING.md](CONTRIBUTING.md) を参照してください。
 
@@ -51,9 +67,9 @@ PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s Tests -p 'test_*.py' -
 
 ## アプリのアップデート
 
-設定 → 一般 → アプリのアップデートから、この公開リポジトリのGitHub Releasesを確認します。現在は配布Releaseがないため、インストールできる更新はありません。この公開先の確認やソースの取得にGitHub CLIのログインは不要です。
+設定 → 一般 → アプリのアップデートから、この公開リポジトリのGitHub Releasesを確認します。該当する配布Releaseがない場合は更新できません。この公開先の確認やソースの取得にGitHub CLIのログインは不要です。
 
-将来の安定版には「最新版に更新」、prereleaseには「開発用 → 開発版に更新」を使います。ソースのmainを取得してビルドする機能ではありません。自動確認・自動インストールは行いません。
+安定版には「最新版に更新」、prereleaseには「開発用 → 開発版に更新」を使います。開発版だけが公開されている間は「開発版に更新」を使ってください。ソースのmainを取得してビルドする機能ではありません。自動確認・自動インストールは行いません。
 
 配布物が提供された場合は、ZIPのSHA-256、固定のDeveloper ID署名元、Apple公証を検証してから更新します。以前のアプリは設置先と同じフォルダ内に退避して保持します。書込み権限のある場所から実行してください。公式の署名元と異なる独自配布は、この更新機能の受入対象にはなりません。
 

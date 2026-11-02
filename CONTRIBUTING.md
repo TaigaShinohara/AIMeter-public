@@ -31,6 +31,6 @@ GitHub Actionsは使用していません。テスト結果はPRへ記載し、�
 
 ## 配布物
 
-現在はソースコードのみを公開しており、署名・公証済みの配布Releaseはありません。ローカル用ZIPと公式の配布ZIPは区別します。ソース変更のマージはRelease公開を意味しません。
+アプリの配布先は [GitHub Releases](https://github.com/TaigaShinohara/AIMeter-public/releases) です。配布状況と動作確認の範囲は各Releaseを参照してください。ローカル用ZIPと公式の署名・公証済み配布ZIPは区別します。ソース変更のマージはRelease公開を意味しません。
 
 公式配布には [リリース手順](docs/RELEASING.md) に沿ったUniversal build、署名・公証、実環境確認、公開判断が必要です。更新先と署名の信頼先を変えるforkでは、更新コード・テスト・ドキュメントを一緒に変更してください。作者の署名用秘密鍵や認証情報を開発参加の条件にはしません。

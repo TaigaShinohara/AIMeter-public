@@ -52,6 +52,7 @@ final class LaunchAtLoginManager: ObservableObject {
 // MARK: - Usage Monitor
 @MainActor
 final class UsageMonitor: ObservableObject {
+    @Published private(set) var requiresCollectionIntroduction: Bool
     @AppStorage("didCalibrateRealLimitsV1") var didCalibrateRealLimitsV1: Bool = false
     @AppStorage("didAutoSeedLocalProvidersV2") var didAutoSeedLocalProvidersV2: Bool = false
     @AppStorage("didMigrateHonestCostsV3") var didMigrateHonestCostsV3: Bool = false
@@ -229,6 +230,7 @@ final class UsageMonitor: ObservableObject {
     private var integrationSettingsObservation: IntegrationSettingsObservation?
     private var isLoadingSubscriptions: Bool = false
     private let automaticallyPublishSnapshots: Bool
+    private var automaticMonitoringStarted = false
     private let localCollector: ((Set<String>, IntegrationPermit) async throws -> LocalUsageData)?
     private var localCollectionTask: Task<LocalUsageData, Error>?
     private var localCollectionPermit: IntegrationPermit?
@@ -237,10 +239,15 @@ final class UsageMonitor: ObservableObject {
     private var refreshAfterPolicyChange = false
 
     init(defaults: UserDefaults = .standard, startMonitoring: Bool = true,
+         requiresCollectionIntroduction: Bool? = nil,
          apiClient: BoundedAPIClient = BoundedAPIClient(),
          keychainOperations: KeychainHelper.Operations = .live,
          gcloudTokenProvider: ((APIReadBudget, IntegrationPermit) async -> String?)? = nil,
          localCollector: ((Set<String>, IntegrationPermit) async throws -> LocalUsageData)? = nil) {
+        // Detached models do not start monitoring; a test can explicitly enable
+        // the new-install boundary without starting live collection or timers.
+        self.requiresCollectionIntroduction = requiresCollectionIntroduction
+            ?? (startMonitoring && !CollectionIntroduction.hasAcknowledged(in: defaults))
         _didCalibrateRealLimitsV1 = AppStorage(wrappedValue: false, "didCalibrateRealLimitsV1", store: defaults)
         _didAutoSeedLocalProvidersV2 = AppStorage(wrappedValue: false, "didAutoSeedLocalProvidersV2", store: defaults)
         _didMigrateHonestCostsV3 = AppStorage(wrappedValue: false, "didMigrateHonestCostsV3", store: defaults)
@@ -288,7 +295,20 @@ final class UsageMonitor: ObservableObject {
                 Task { @MainActor [weak self] in self?.integrationSettingChanged(key, enabled: enabled) }
             }
         }
-        guard startMonitoring else { return }
+        guard startMonitoring, !self.requiresCollectionIntroduction else { return }
+        startAutomaticMonitoring()
+    }
+
+    func beginCollection() {
+        guard requiresCollectionIntroduction else { return }
+        credentialDefaults.set(true, forKey: CollectionIntroduction.acknowledgmentPreference)
+        requiresCollectionIntroduction = false
+        if automaticallyPublishSnapshots { startAutomaticMonitoring() }
+    }
+
+    private func startAutomaticMonitoring() {
+        guard !requiresCollectionIntroduction, !automaticMonitoringStarted else { return }
+        automaticMonitoringStarted = true
 
         cleanupTemporarySnapshots()
 
@@ -626,6 +646,7 @@ final class UsageMonitor: ObservableObject {
     }
 
     var menuBarTitle: String {
+        guard !requiresCollectionIntroduction else { return "AIMeter 初期設定" }
         let bottlenecks = activeBottlenecks
         var services: [(String, [PeriodUsageMetric])] = []
         if showOpenAISection && showOpenAIInMenuBar { services.append(("GPT", openaiMetrics)) }
@@ -665,7 +686,7 @@ final class UsageMonitor: ObservableObject {
     }
 
     func refresh() async {
-        guard !isRefreshing else { return }
+        guard !requiresCollectionIntroduction, !isRefreshing else { return }
         isRefreshing = true
         collectionError = nil
         sanitizeSettings()
@@ -748,7 +769,7 @@ final class UsageMonitor: ObservableObject {
     func publishWidgetSnapshot(to customURL: URL? = nil) {
         // Preview/test monitors can publish only to an explicitly supplied
         // synthetic destination, including refresh and policy-retry paths.
-        guard automaticallyPublishSnapshots || customURL != nil else { return }
+        guard !requiresCollectionIntroduction, automaticallyPublishSnapshots || customURL != nil else { return }
         do {
             try SharedStore.saveWidgetSnapshot(widgetSnapshot(showUsageAmounts: requestedUsageAmounts), to: customURL)
             if let requested = requestedUsageAmounts {
@@ -903,12 +924,12 @@ final class UsageMonitor: ObservableObject {
     }
 
     func loadOpenAICredentialIfEnabled() {
-        guard openAIIntegrationEnabled, !openAICredential.isLoaded else { return }
+        guard !requiresCollectionIntroduction, openAIIntegrationEnabled, !openAICredential.isLoaded else { return }
         if openAICredential.load(legacyValue: legacyOpenaiAdminKey) { _ = removeLegacyCredentialPreference() }
     }
 
     func retryOpenAICredentialLoad() {
-        guard openAIIntegrationEnabled else { return }
+        guard !requiresCollectionIntroduction, openAIIntegrationEnabled else { return }
         stopOpenAIRequests()
         if openAICredential.load(legacyValue: legacyOpenaiAdminKey) { _ = removeLegacyCredentialPreference() }
     }
@@ -990,6 +1011,7 @@ final class UsageMonitor: ObservableObject {
 
     // Initial, timer, wake and manual refresh all enter this same policy.
     func refreshConfiguredAPIs() async {
+        guard !requiresCollectionIntroduction else { return }
         await refreshAntigravityQuota()
         guard !Task.isCancelled else { return }
         let budget = APIReadBudget()
@@ -1801,6 +1823,7 @@ struct DesktopMeterView: View {
                     .accessibilityIdentifier("pin-widget")
                     .accessibilityValue(monitor.isWidgetPinned ? "固定中" : "解除中")
                     MeterSettingsButton()
+                        .disabled(monitor.requiresCollectionIntroduction)
                 }
             }
     }
@@ -1822,7 +1845,7 @@ private struct MeterRefreshButton: View {
             }
             .frame(width: 16, height: 16)
         }
-        .disabled(monitor.isRefreshing)
+        .disabled(monitor.requiresCollectionIntroduction || monitor.isRefreshing)
         .help("今すぐ更新")
         .accessibilityLabel("今すぐ更新")
         .accessibilityValue(monitor.isRefreshing ? "更新中" : "")
@@ -1878,72 +1901,81 @@ struct AIMeterCardView: View {
                     Spacer()
                     MeterRefreshButton(monitor: monitor)
                     MeterSettingsButton()
+                        .disabled(monitor.requiresCollectionIntroduction)
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
                 Divider()
             }
 
-            TimelineView(.periodic(from: .now, by: 60)) { _ in
-                // A monitor refresh may be newer than the last timeline tick.
-                CharacterSummaryView(highlight: monitor.characterHighlight())
-            }
-
-            UsageDisplayModePicker(isDetailedView: $monitor.isDetailedView)
-
-            // Provider Sections
-            if totalVisibleProvidersCount == 0 {
-                ContentUnavailableView {
-                    Label("表示するAIサービスがありません", systemImage: "slider.horizontal.3")
-                } description: {
-                    Text("設定からサービスを有効化してください")
-                } actions: {
-                    Button("設定を開く...") {
-                        openSettingsWindow(openWindow: openWindow)
-                    }
-                    .buttonStyle(.borderedProminent)
+            if monitor.requiresCollectionIntroduction {
+                ScrollView {
+                    CollectionIntroductionView(monitor: monitor)
+                        .padding(.trailing, 2)
                 }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 16)
+                .frame(height: 560)
             } else {
-                ViewThatFits(in: .vertical) {
-                    providerSectionsStack
-                        .fixedSize(horizontal: false, vertical: true)
-                    ScrollView {
+                TimelineView(.periodic(from: .now, by: 60)) { _ in
+                    // A monitor refresh may be newer than the last timeline tick.
+                    CharacterSummaryView(highlight: monitor.characterHighlight())
+                }
+
+                UsageDisplayModePicker(isDetailedView: $monitor.isDetailedView)
+
+                // Provider Sections
+                if totalVisibleProvidersCount == 0 {
+                    ContentUnavailableView {
+                        Label("表示するAIサービスがありません", systemImage: "slider.horizontal.3")
+                    } description: {
+                        Text("設定からサービスを有効化してください")
+                    } actions: {
+                        Button("設定を開く...") {
+                            openSettingsWindow(openWindow: openWindow)
+                        }
+                        .buttonStyle(.borderedProminent)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 16)
+                } else {
+                    ViewThatFits(in: .vertical) {
                         providerSectionsStack
-                            .padding(.trailing, 2)
+                            .fixedSize(horizontal: false, vertical: true)
+                        ScrollView {
+                            providerSectionsStack
+                                .padding(.trailing, 2)
+                        }
                     }
+                    .frame(maxHeight: isMenuBar ? 300 : 420)
                 }
-                .frame(maxHeight: isMenuBar ? 300 : 420)
-            }
 
-            if let error = monitor.collectionError {
-                Label(error, systemImage: "exclamationmark.triangle")
-                    .font(.caption)
-                    .foregroundStyle(.orange)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+                if let error = monitor.collectionError {
+                    Label(error, systemImage: "exclamationmark.triangle")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
 
-            if let error = monitor.widgetSharingError {
-                Label(error, systemImage: "exclamationmark.triangle")
-                    .font(.caption)
-                    .foregroundStyle(.orange)
-            }
+                if let error = monitor.widgetSharingError {
+                    Label(error, systemImage: "exclamationmark.triangle")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
 
-            // Quiet Control Center Style Footer
-            HStack {
-                Group {
-                    if let date = monitor.lastUpdated {
-                        Text("\(Self.timeFormatter.string(from: date)) 更新")
-                    } else {
-                        Text("データ未取得")
+                // Quiet Control Center Style Footer
+                HStack {
+                    Group {
+                        if let date = monitor.lastUpdated {
+                            Text("\(Self.timeFormatter.string(from: date)) 更新")
+                        } else {
+                            Text("データ未取得")
+                        }
                     }
+                    .font(.caption2.monospacedDigit())
+                    .foregroundStyle(.tertiary)
+                    Spacer()
                 }
-                .font(.caption2.monospacedDigit())
-                .foregroundStyle(.tertiary)
-                Spacer()
+                .padding(.top, 2)
             }
-            .padding(.top, 2)
 
             if isMenuBar {
                 Divider()
@@ -2040,6 +2072,7 @@ struct AIMeterCardView: View {
             Button("設定...") {
                 openSettingsWindow(openWindow: openWindow)
             }
+            .disabled(monitor.requiresCollectionIntroduction)
 
             Button("終了") {
                 NSApplication.shared.terminate(nil)
@@ -2155,15 +2188,26 @@ struct AIMeterApp: App {
         .menuBarExtraStyle(.window)
 
         Window("AIMeter 設定", id: "settings") {
-            SettingsView(monitor: monitor)
+            settingsContent
         }
         .defaultSize(width: 980, height: 680)
         .windowResizability(.contentMinSize)
 
         Settings {
-            SettingsView(monitor: monitor)
+            settingsContent
         }
         .defaultSize(width: 980, height: 680)
         .windowResizability(.contentMinSize)
+    }
+
+    @ViewBuilder
+    private var settingsContent: some View {
+        if monitor.requiresCollectionIntroduction {
+            CollectionIntroductionView(monitor: monitor)
+                .padding(20)
+                .frame(width: 388)
+        } else {
+            SettingsView(monitor: monitor)
+        }
     }
 }
