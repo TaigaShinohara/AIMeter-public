@@ -28,6 +28,8 @@ enum StoreSafeFileTree {
         let inode: UInt64
         let permissions: UInt16
         let modificationTime: Date
+        let changeSeconds: Int64
+        let changeNanoseconds: Int64
 
         fileprivate init(_ value: stat) {
             size = value.st_size
@@ -35,6 +37,8 @@ enum StoreSafeFileTree {
             inode = UInt64(value.st_ino)
             permissions = UInt16(value.st_mode & 0o7777)
             modificationTime = Date(timeIntervalSince1970: Double(value.st_mtimespec.tv_sec) + Double(value.st_mtimespec.tv_nsec) / 1_000_000_000)
+            changeSeconds = Int64(value.st_ctimespec.tv_sec)
+            changeNanoseconds = Int64(value.st_ctimespec.tv_nsec)
         }
     }
 
@@ -150,17 +154,27 @@ enum StoreSafeFileTree {
                     try scan(childFD, components: path)
                 } else {
                     guard actual.st_size >= 0, actual.st_size <= Int64(limits.fileBytes) else { throw Failure.limit }
+                    // Refuse the whole selected file before reading when the
+                    // remaining shared byte budget cannot contain it.
+                    guard actual.st_size <= Int64(limits.totalBytes - totalBytes) else { throw Failure.limit }
                     var consumed = 0
                     var reachedEOF = false
                     func nextChunk() throws -> Data {
                         try check()
                         if reachedEOF { return Data() }
-                        var buffer = [UInt8](repeating: 0, count: 32 * 1024)
+                        let remaining = Int(actual.st_size) - consumed
+                        if remaining == 0 { reachedEOF = true; return Data() }
+                        let amount = min(32 * 1024, remaining, limits.fileBytes - consumed,
+                                         limits.totalBytes - totalBytes)
+                        guard amount > 0 else { throw Failure.limit }
+                        var buffer = [UInt8](repeating: 0, count: amount)
                         let count = buffer.withUnsafeMutableBytes { bytes in
                             Darwin.read(childFD, bytes.baseAddress, bytes.count)
                         }
                         guard count >= 0 else { throw Failure.io }
-                        if count == 0 { reachedEOF = true; return Data() }
+                        // An early EOF means the observed file could not be
+                        // consumed as advertised; do not return a complete result.
+                        if count == 0 { throw Failure.invalidEntry }
                         guard count <= limits.fileBytes - consumed,
                               count <= limits.totalBytes - totalBytes else { throw Failure.limit }
                         consumed += count
@@ -180,6 +194,10 @@ enum StoreSafeFileTree {
                             let chunk = try nextChunk()
                             if chunk.isEmpty { break }
                             data.append(chunk)
+                        }
+                        var after = stat()
+                        guard fstat(childFD, &after) == 0, Metadata(after) == Metadata(actual) else {
+                            throw Failure.invalidEntry
                         }
                         result.append(File(components: path, data: data))
                     }

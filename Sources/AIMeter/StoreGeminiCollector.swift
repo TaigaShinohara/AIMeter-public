@@ -41,6 +41,7 @@ enum StoreGeminiCollector {
             var files: [InputFile] = []
             var treeLimits = limits.tree
             treeLimits.seconds = deadline - ProcessInfo.processInfo.systemUptime
+            treeLimits.totalBytes = limits.tree.totalBytes - consumed
             guard treeLimits.seconds > 0 else { throw StoreSafeFileTree.Failure.limit }
             _ = try StoreSafeFileTree.read(rootDirectoryFD: fd, limits: treeLimits, includeFile: { path, metadata in
                 guard let name = path.last, metadata.modificationTime >= cutoff else { return false }
