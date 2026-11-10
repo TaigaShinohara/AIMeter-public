@@ -4,6 +4,8 @@
 /AIMeter.app/
 *.zip
 *.xcodeproj
+!AppStore/AIMeterStore.xcodeproj/
+!AppStore/AIMeterStore.xcodeproj/project.pbxproj
 xcuserdata/
 
 __pycache__/

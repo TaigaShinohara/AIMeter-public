@@ -433,7 +433,14 @@ public enum SharedStore {
     }()
 
     public static func loadLocalUsageData(from customURL: URL? = nil) -> LocalUsageData? {
-        let url = customURL ?? localUsageFileURL
+        let url: URL
+        if let customURL {
+            url = customURL
+        } else {
+            guard let configuration = try? DistributionConfiguration.current() else { return nil }
+            url = configuration.mode == .direct ? localUsageFileURL :
+                FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".ai_meter_usage.json")
+        }
         guard let data = try? BoundedInput().data(at: url),
               let snapshot = try? JSONDecoder().decode(LocalUsageData.self, from: data),
               (try? snapshot.validateNumbers()) != nil else { return nil }
@@ -460,10 +467,34 @@ public enum SharedStore {
     public static let widgetSnapshotFileURL = localUsageFileURL.deletingLastPathComponent()
         .appendingPathComponent(".ai_meter_widget.json")
 
+    /// Resolve the declared group rather than silently reading the direct build's cache.
+    public static func resolvedWidgetSnapshotURL(
+        configuration: DistributionConfiguration,
+        containerProvider: (String) -> URL?
+    ) throws -> URL {
+        switch configuration.mode {
+        case .direct:
+            return widgetSnapshotFileURL
+        case .appStore:
+            guard let group = configuration.appGroupIdentifier else {
+                throw DistributionConfiguration.ConfigurationError.missingAppGroupContainer
+            }
+            return try configuration.widgetSnapshotURL(home: localUsageFileURL.deletingLastPathComponent(),
+                                                       groupContainer: containerProvider(group))
+        }
+    }
+
+    private static func currentWidgetSnapshotURL() throws -> URL {
+        try resolvedWidgetSnapshotURL(configuration: DistributionConfiguration.current()) {
+            FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: $0)
+        }
+    }
+
     public static func loadWidgetSnapshot(from customURL: URL? = nil, at date: Date = Date()) -> AIMeterWidgetSnapshot {
         var limits = BoundedInput.Limits()
         limits.jsonBytes = 1024 * 1024
-        guard let data = try? BoundedInput(limits: limits).data(at: customURL ?? widgetSnapshotFileURL),
+        guard let url = customURL ?? (try? currentWidgetSnapshotURL()),
+              let data = try? BoundedInput(limits: limits).data(at: url),
               let snapshot = try? JSONDecoder().decode(AIMeterWidgetSnapshot.self, from: data),
               (try? validateWidgetSnapshot(snapshot)) != nil else { return .empty() }
         return snapshot.expiringQuotas(at: date)
@@ -475,7 +506,9 @@ public enum SharedStore {
         try validateWidgetSnapshot(snapshot)
         let data = try JSONEncoder().encode(snapshot)
         guard data.count <= 1024 * 1024 else { throw BoundedInput.Failure.limit }
-        let destination = customURL ?? widgetSnapshotFileURL
+        let destination: URL
+        if let customURL { destination = customURL }
+        else { destination = try currentWidgetSnapshotURL() }
         let temporary = destination.deletingLastPathComponent()
             .appendingPathComponent(".ai_meter_widget.\(UUID().uuidString).tmp")
         let descriptor = try BoundedInput.createPrivateFile(at: temporary)

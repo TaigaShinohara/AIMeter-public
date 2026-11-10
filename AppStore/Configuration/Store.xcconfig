@@ -1,0 +1,11 @@
+// Supply these in an untracked local configuration after confirming ownership.
+// Empty values intentionally prevent accidental use of the GitHub identifiers.
+AIMETER_STORE_APP_BUNDLE_ID =
+AIMETER_STORE_WIDGET_BUNDLE_ID =
+AIMETER_STORE_DEVELOPMENT_TEAM =
+AIMETER_STORE_APP_GROUP =
+AIMETER_STORE_KEYCHAIN_SERVICE =
+AIMETER_STORE_WIDGET_KIND =
+AIMETER_STORE_URL_SCHEME =
+SWIFT_ACTIVE_COMPILATION_CONDITIONS = $(inherited) AIMETER_APP_STORE
+#include? "Store.local.xcconfig"

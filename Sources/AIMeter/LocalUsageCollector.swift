@@ -85,12 +85,285 @@ enum LocalUsageCollector {
         throw BoundedInput.Failure.file
     }
 
+    /// Validate every fixed intermediate component without following links.
+    /// A missing component means that the optional subdirectory is absent.
+    private static func storeControlDirectory(at root: URL) throws -> URL? {
+        var current = root
+        for component in ["AgentStores", "cursor_agent_stores", ".control"] {
+            current.appendPathComponent(component)
+            guard let info = try fileInfoIfPresent(at: current) else { return nil }
+            guard info.st_mode & S_IFMT == S_IFDIR else { throw BoundedInput.Failure.file }
+        }
+        return current
+    }
+
     // MARK: - Validation Result Struct
     struct ProviderPathScanResult: Equatable {
         var isValid: Bool
         var message: String
         var previewCount: Int
         var statusNote: String?
+    }
+
+    enum StoreCodexOutcome: Equatable {
+        case notDetected
+        case invalidData
+        /// A usable quota exists, but no usage totals were accepted.
+        case quotaOnly(LocalUsageData, partial: Bool)
+        case partial(LocalUsageData)
+        case complete(LocalUsageData)
+    }
+
+    /// Experimental vertical slice. The caller holds the grant and owns rootFD.
+    /// No cache or URL-based collector is used by this entry point.
+    static func collectStoreCodex(rootFD: Int32, limits: StoreSafeFileTree.Limits = .init(),
+                                  now: Date = Date(),
+                                  beforeOpen: ([String]) throws -> Void = { _ in }) throws -> StoreCodexOutcome {
+        let cutoffs = calculateCutoffs(now: now)
+        let cutoff = cutoffs["30d"] ?? now.addingTimeInterval(-30 * 86400)
+        var malformedRecords = 0
+        var inconsistentCounters = false
+        let parsed = try collectCodexRows(now: now, cutoffs: cutoffs, chronologicalRateLimits: true,
+                                          rejectCounterRegression: true,
+                                          onCounterInconsistency: { inconsistentCounters = true }) { startFile, accept in
+            _ = try StoreSafeFileTree.read(rootDirectoryFD: rootFD, limits: limits,
+                includeFile: { path, metadata in
+                    guard let name = path.last, !name.hasPrefix(".") else { return false }
+                    return name.hasSuffix(".jsonl") && metadata.modificationTime >= cutoff
+                }, descendDirectory: { path, _ in
+                    guard let name = path.last else { return false }
+                    return !name.hasPrefix(".")
+                }, beforeOpen: beforeOpen, visitFile: { _, _, nextChunk in
+                    startFile()
+                    var usageUntrustedInFile = false
+                    try readStoreCodexLines(nextChunk: nextChunk, lineLimit: limits.lineBytes) { line in
+                        switch classifyStoreCodexLine(line) {
+                        case .irrelevant:
+                            break
+                        case let .malformed(usageMayBeInvalid):
+                            malformedRecords += 1
+                            // The malformed event could be a cumulative usage
+                            // point. Do not shift its unknown increment to the
+                            // timestamp of a later event from the same file.
+                            if usageMayBeInvalid { usageUntrustedInFile = true }
+                        case let .record(sanitized, partial, invalidUsage):
+                            if partial { malformedRecords += 1 }
+                            if invalidUsage { usageUntrustedInFile = true }
+                            if usageUntrustedInFile {
+                                try accept(try removingStoreUsage(from: sanitized))
+                            } else {
+                                try accept(sanitized)
+                            }
+                        }
+                    }
+                })
+        }
+        let hasUsage = parsed.validRecords > 0
+        let hasQuota = parsed.serverPct != nil || parsed.resetAt != nil
+        let partial = malformedRecords > 0 || inconsistentCounters
+        guard hasUsage || hasQuota else { return partial ? .invalidData : .notDetected }
+        let result = LocalUsageData(openaiUsedTokens: hasUsage ? (parsed.used.monthly ?? 0) : nil,
+                                    openaiCostUSD: hasUsage ? parsed.cost : nil,
+                                    openaiUsedByPeriod: hasUsage ? parsed.used : nil,
+                                    openaiServerUsedPercentByPeriod: parsed.serverPct,
+                                    openaiResetAtByPeriod: parsed.resetAt,
+                                    openaiPlanType: parsed.planType,
+                                    source: "store_selected_sources",
+                                    updatedAt: isoFormatterStandard.string(from: now))
+        try result.validateNumbers()
+        if !hasUsage { return .quotaOnly(result, partial: partial) }
+        return partial ? .partial(result) : .complete(result)
+    }
+
+    private enum StoreCodexLineKind {
+        case irrelevant, record(String, partial: Bool, invalidUsage: Bool), malformed(usageMayBeInvalid: Bool)
+    }
+
+    /// Preserve an independent quota event after the file's usage becomes
+    /// untrustworthy, without letting its cumulative totals reach the parser.
+    private static func removingStoreUsage(from line: String) throws -> String {
+        guard let data = line.data(using: .utf8),
+              var root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              var payload = root["payload"] as? [String: Any] else { throw BoundedInput.Failure.file }
+        payload["info"] = NSNull()
+        root["payload"] = payload
+        let normalized = try JSONSerialization.data(withJSONObject: root)
+        guard let text = String(data: normalized, encoding: .utf8) else { throw BoundedInput.Failure.encoding }
+        return text
+    }
+
+    /// Parse every bounded line: a marker may be JSON-escaped. Unparseable
+    /// nonempty lines are uncertain and make the result incomplete.
+    private static func classifyStoreCodexLine(_ line: String) -> StoreCodexLineKind {
+        if line.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return .irrelevant }
+        guard let data = line.data(using: .utf8),
+              let object = try? JSONSerialization.jsonObject(with: data) else { return .malformed(usageMayBeInvalid: true) }
+        guard var root = object as? [String: Any],
+              var payload = root["payload"] as? [String: Any],
+              payload["type"] as? String == "token_count" else { return .irrelevant }
+        let infoValue = payload["info"]
+        let infoAbsent = infoValue == nil || infoValue is NSNull
+        guard let timestamp = root["timestamp"] as? String, parseISODate(timestamp) != nil else {
+            return .malformed(usageMayBeInvalid: !infoAbsent)
+        }
+        var validUsage = false
+        if let info = infoValue as? [String: Any], let totals = info["total_token_usage"] as? [String: Any] {
+            if let input = totals["input_tokens"], !(input is NSNull),
+               let output = totals["output_tokens"], !(output is NSNull),
+               let inputCount = try? UsageNumber.count(input),
+               let cachedCount = try? UsageNumber.count(totals["cached_input_tokens"]),
+               (try? UsageNumber.count(output)) != nil {
+                validUsage = cachedCount <= inputCount
+            }
+        }
+        let rateValue = payload["rate_limits"]
+        let rateAbsent = rateValue == nil || rateValue is NSNull
+        let normalizedRate = rateValue.flatMap(normalizeStoreRateLimits)
+        let validRate = normalizedRate != nil
+        let invalidUsage = !infoAbsent && !validUsage
+        let invalidRate = !rateAbsent && !validRate
+        let incomplete = invalidUsage || invalidRate || (normalizedRate?.incomplete ?? false)
+        guard validUsage || validRate else { return .malformed(usageMayBeInvalid: !infoAbsent) }
+        if invalidUsage { payload["info"] = NSNull() }
+        if invalidRate { payload.removeValue(forKey: "rate_limits") }
+        if let normalizedRate { payload["rate_limits"] = normalizedRate.value }
+        root["payload"] = payload
+        guard let normalized = try? JSONSerialization.data(withJSONObject: root),
+              let text = String(data: normalized, encoding: .utf8) else { return .malformed(usageMayBeInvalid: !infoAbsent) }
+        return .record(text, partial: incomplete, invalidUsage: invalidUsage)
+    }
+
+    /// Check every field interpreted by the shared parser before passing it
+    /// through. A bad quota must not erase an otherwise valid usage result.
+    private static func normalizeStoreRateLimits(_ value: Any) -> (value: [String: Any], incomplete: Bool)? {
+        guard var rate = value as? [String: Any] else { return nil }
+        var incomplete = false
+        var meaningfulWindows = 0
+        if rate["plan_type"] is NSNull { rate.removeValue(forKey: "plan_type") }
+        if let plan = rate["plan_type"], !(plan is String) { return nil }
+        if rate["credits"] is NSNull { rate.removeValue(forKey: "credits") }
+        if let raw = rate["credits"] {
+            guard var credits = raw as? [String: Any] else { return nil }
+            if credits["balance"] is NSNull { credits.removeValue(forKey: "balance") }
+            if let balance = credits["balance"], (try? UsageNumber.nonnegative(balance)) == nil { return nil }
+            rate["credits"] = credits
+        }
+        for key in ["primary", "secondary"] {
+            if rate[key] is NSNull { rate.removeValue(forKey: key) }
+            guard let raw = rate[key] else { continue }
+            guard var slot = raw as? [String: Any] else { return nil }
+            for field in ["window_minutes", "used_percent", "resets_at"] where slot[field] is NSNull {
+                slot.removeValue(forKey: field)
+            }
+            if let window = slot["window_minutes"], (try? UsageNumber.count(window)) == nil { return nil }
+            if let used = slot["used_percent"], (try? UsageNumber.nonnegative(used)) == nil { return nil }
+            if let reset = slot["resets_at"], (try? UsageNumber.count(reset)) == nil { return nil }
+            let window = (try? UsageNumber.count(slot["window_minutes"])) ?? 0
+            let knownWindow = (90...150).contains(window) || (240...360).contains(window)
+                || (1380...1500).contains(window) || (9500...10500).contains(window) || window >= 40000
+            if knownWindow && (slot["used_percent"] != nil || slot["resets_at"] != nil) {
+                meaningfulWindows += 1
+            } else {
+                // A meaningless window must not replace an older usable quota.
+                rate.removeValue(forKey: key)
+                incomplete = true
+                continue
+            }
+            rate[key] = slot
+        }
+        // The shared parser replaces the entire previous quota. Do not allow
+        // an empty or metadata-only object to erase usable window values.
+        guard meaningfulWindows > 0 else { return nil }
+        return (rate, incomplete)
+    }
+
+    /// Inspect every bounded line without reopening paths. Oversized lines fail
+    /// closed even if apparently unrelated: their type cannot be determined.
+    private static func readStoreCodexLines(nextChunk: () throws -> Data, lineLimit: Int,
+                                           body: (String) throws -> Void) throws {
+        guard lineLimit > 0 else { throw StoreSafeFileTree.Failure.limit }
+        var pending = Data()
+        func consume(_ bytes: Data) throws {
+            guard bytes.count <= lineLimit - pending.count else { throw StoreSafeFileTree.Failure.limit }
+            pending.append(bytes)
+        }
+        func deliver() throws {
+            guard let line = String(data: pending, encoding: .utf8) else { throw BoundedInput.Failure.encoding }
+            try body(line)
+            pending.removeAll(keepingCapacity: true)
+        }
+        while true {
+            let chunk = try nextChunk()
+            if chunk.isEmpty { break }
+            var start = chunk.startIndex
+            while let end = chunk[start...].firstIndex(of: 10) {
+                try consume(chunk[start..<end])
+                try deliver()
+                start = end + 1
+            }
+            if start < chunk.endIndex { try consume(chunk[start...]) }
+        }
+        if !pending.isEmpty { try deliver() }
+    }
+
+    /// Preliminary Store-only collection. Callers must hold security-scoped
+    /// access for every URL throughout this call. No cache is read or written.
+    /// Results alone do not establish permissions, completeness, or valid zeroes.
+    static func collectStoreSources(_ sources: [String: URL],
+                                    home: URL = FileManager.default.homeDirectoryForCurrentUser,
+                                    limits: BoundedInput.Limits = .init(),
+                                    now: Date = Date()) throws -> LocalUsageData {
+        for (id, url) in sources {
+            guard let source = StoreSourceCatalog.source(id: id), url.isFileURL,
+                  url.path.hasPrefix("/"), let info = try fileInfoIfPresent(at: url) else {
+                throw BoundedInput.Failure.file
+            }
+            let mode = info.st_mode & S_IFMT
+            guard (source.selectionKind == .directory && mode == S_IFDIR) ||
+                  (source.selectionKind == .file && mode == S_IFREG) else {
+                throw BoundedInput.Failure.file
+            }
+        }
+        let input = BoundedInput(limits: limits)
+        let cutoffs = calculateCutoffs(now: now)
+        let codex = try sources["openai.sessions"].map {
+            try collectCodex(now: now, cutoffs: cutoffs, customPath: $0.path, home: home, input: input)
+        }
+        let gemini = try (sources["gemini.brain"] != nil || sources["gemini.chats"] != nil) ?
+            collectGemini(now: now, cutoffs: cutoffs, home: home, input: input, storeSources: sources) : nil
+        var providers: [String: CustomProviderUsageJSON] = [:]
+        if let logs = sources["claude.logs"] {
+            providers["claude"] = try collectClaude(now: now, cutoffs: cutoffs, customPath: logs.path,
+                                                     home: home, input: input, storeSources: sources)
+        }
+        if let url = sources["grokbot.persistence"] {
+            providers["grokbot"] = try collectGrokBot(now: now, cutoffs: cutoffs, customPath: url.path,
+                                                       home: home, input: input, explicitOnly: true)
+        }
+        if let url = sources["copilot.sessions"] {
+            providers["copilot"] = try collectCopilot(now: now, cutoffs: cutoffs, customPath: url.path, home: home, input: input)
+        }
+        if let url = sources["windsurf.databaseDirectory"] {
+            // Directory grant covers both state.vscdb and its adjacent WAL.
+            providers["windsurf"] = try collectWindsurf(customPath: url.path, home: home, input: input)
+        }
+        if let url = sources["cursor.agentStores"] {
+            providers["cursor"] = try collectCursor(now: now, cutoffs: cutoffs, customPath: url.path,
+                                                     home: home, input: input, explicitOnly: true)
+        }
+        let result = LocalUsageData(
+            openaiUsedTokens: codex.map { $0.used.monthly ?? 0 },
+            openaiCostUSD: codex?.cost,
+            geminiUsedTokens: gemini.map { $0.used.monthly ?? 0 },
+            geminiCostUSD: gemini?.cost,
+            openaiUsedByPeriod: codex?.used, geminiUsedByPeriod: gemini?.used,
+            openaiServerUsedPercentByPeriod: codex?.serverPct,
+            openaiResetAtByPeriod: codex?.resetAt, openaiPlanType: codex?.planType,
+            openaiCreditBalance: nil, providers: providers, detectedProviders: [],
+            source: "store_selected_sources", updatedAt: isoFormatterStandard.string(from: now)
+        )
+        try result.validateNumbers()
+        return result
     }
 
     // MARK: - Main Entrypoint
@@ -304,16 +577,9 @@ enum LocalUsageCollector {
         serverPct: ProviderPeriodPercentJSON?,
         resetAt: ProviderPeriodUsageJSON?,
         planType: String?,
-        creditBalance: Double?
+        creditBalance: Double?,
+        validRecords: Int
     ) {
-        var usedCounts = ["2h": 0, "5h": 0, "1d": 0, "7d": 0, "30d": 0]
-        var rawCounts = ["2h": 0, "5h": 0, "1d": 0, "7d": 0, "30d": 0]
-        var cost30d: Double = 0.0
-
-        var latestRL: [String: Any]?
-        var latestRLTimestamp = ""
-
-        let cutoff30d = cutoffs["30d"] ?? now.addingTimeInterval(-30 * 86400)
         let codexBase: URL
         if let cp = customPath, !cp.isEmpty {
             codexBase = URL(fileURLWithPath: (cp as NSString).expandingTildeInPath)
@@ -321,66 +587,118 @@ enum LocalUsageCollector {
             codexBase = home.appendingPathComponent(".codex/sessions")
         }
 
-        for fileURL in try input.files(at: codexBase) {
-            guard fileURL.pathExtension == "jsonl" else { continue }
-            guard let attrs = try? fileURL.resourceValues(forKeys: [.contentModificationDateKey]),
-                  let mdate = attrs.contentModificationDate,
-                  mdate >= cutoff30d else { continue }
+        return try collectCodexRows(now: now, cutoffs: cutoffs) { startFile, accept in
+            for fileURL in try input.files(at: codexBase) {
+                guard fileURL.pathExtension == "jsonl" else { continue }
+                guard let attrs = try? fileURL.resourceValues(forKeys: [.contentModificationDateKey]),
+                      let mdate = attrs.contentModificationDate,
+                      mdate >= (cutoffs["30d"] ?? now.addingTimeInterval(-30 * 86400)) else { continue }
+                startFile()
+                try input.lines(at: fileURL, containing: "\"token_count\"", body: accept)
+            }
+        }
+    }
 
-            var prevTuple: (inp: Int, cached: Int, out: Int)?
+    private static func collectCodexRows(now: Date, cutoffs: [String: Date], chronologicalRateLimits: Bool = false,
+                                         rejectCounterRegression: Bool = false,
+                                         onCounterInconsistency: @escaping () -> Void = {},
+                                         scan: (_ startFile: @escaping () -> Void, _ accept: @escaping (String) throws -> Void) throws -> Void) throws -> (
+        used: ProviderPeriodUsageJSON,
+        raw: ProviderPeriodUsageJSON,
+        cost: Double,
+        serverPct: ProviderPeriodPercentJSON?,
+        resetAt: ProviderPeriodUsageJSON?,
+        planType: String?,
+        creditBalance: Double?,
+        validRecords: Int
+    ) {
+        var usedCounts = ["2h": 0, "5h": 0, "1d": 0, "7d": 0, "30d": 0]
+        var rawCounts = ["2h": 0, "5h": 0, "1d": 0, "7d": 0, "30d": 0]
+        var cost30d: Double = 0.0
 
-            try input.lines(at: fileURL, containing: "\"token_count\"") { line in
-                guard let lineData = line.data(using: .utf8),
-                      let obj = try? JSONSerialization.jsonObject(with: lineData) as? [String: Any],
-                      let payload = obj["payload"] as? [String: Any],
-                      payload["type"] as? String == "token_count" else { return }
+        var latestRL: [String: Any]?
+        var latestRLTimestamp = ""
+        var latestRLDate: Date?
 
-                let tsStr = obj["timestamp"] as? String ?? ""
-                if let rl = payload["rate_limits"] as? [String: Any], tsStr > latestRLTimestamp {
+        let cutoff30d = cutoffs["30d"] ?? now.addingTimeInterval(-30 * 86400)
+        var validRecords = 0
+        var prevTuple: (inp: Int, cached: Int, out: Int)?
+        var countersUntrustedInFile = false
+        try scan({ prevTuple = nil; countersUntrustedInFile = false }) { line in
+            guard let lineData = line.data(using: .utf8),
+                  let obj = try? JSONSerialization.jsonObject(with: lineData) as? [String: Any],
+                  let payload = obj["payload"] as? [String: Any],
+                  payload["type"] as? String == "token_count" else { return }
+
+            let tsStr = obj["timestamp"] as? String ?? ""
+            if let rl = payload["rate_limits"] as? [String: Any] {
+                if chronologicalRateLimits {
+                    if let date = parseISODate(tsStr), latestRLDate.map({ date > $0 }) ?? true {
+                        latestRLDate = date
+                        latestRL = rl
+                    }
+                } else if tsStr > latestRLTimestamp {
                     latestRLTimestamp = tsStr
                     latestRL = rl
                 }
+            }
 
-                guard let info = payload["info"] as? [String: Any],
-                      let tot = info["total_token_usage"] as? [String: Any],
-                      !tsStr.isEmpty,
-                      let dt = parseISODate(tsStr) else { return }
+            guard let info = payload["info"] as? [String: Any],
+                  let tot = info["total_token_usage"] as? [String: Any],
+                  !tsStr.isEmpty,
+                  let dt = parseISODate(tsStr) else { return }
 
-                let curIn = try UsageNumber.count(tot["input_tokens"])
-                let curCached = try UsageNumber.count(tot["cached_input_tokens"])
-                let curOut = try UsageNumber.count(tot["output_tokens"])
-                let curTuple = (inp: curIn, cached: curCached, out: curOut)
+            // A discontinuity makes later cumulative values in this file
+            // ambiguous. Keep the last accepted baseline but discard all
+            // following usage from this file; the next file has a new baseline.
+            if rejectCounterRegression && countersUntrustedInFile { return }
 
-                let dIn: Int
-                let dCached: Int
-                let dOut: Int
-
-                if let prev = prevTuple {
-                    if prev == curTuple { return }
-                    dIn = try UsageNumber.difference(curIn, prev.inp)
-                    dCached = try UsageNumber.difference(curCached, prev.cached)
-                    dOut = try UsageNumber.difference(curOut, prev.out)
-                } else {
-                    dIn = curIn
-                    dCached = curCached
-                    dOut = curOut
+            let curIn = try UsageNumber.count(tot["input_tokens"])
+            let curCached = try UsageNumber.count(tot["cached_input_tokens"])
+            let curOut = try UsageNumber.count(tot["output_tokens"])
+            if rejectCounterRegression, let prev = prevTuple {
+                if curIn < prev.inp || curCached < prev.cached || curOut < prev.out
+                    || curCached - prev.cached > curIn - prev.inp {
+                    countersUntrustedInFile = true
+                    onCounterInconsistency()
+                    return
                 }
-                prevTuple = curTuple
+            }
+            if (tot["input_tokens"] != nil && !(tot["input_tokens"] is NSNull)) ||
+               (tot["output_tokens"] != nil && !(tot["output_tokens"] is NSNull)) {
+                validRecords += 1
+            }
+            let curTuple = (inp: curIn, cached: curCached, out: curOut)
 
-                let uncachedIn = try UsageNumber.difference(dIn, dCached)
-                let effective = try UsageNumber.sum([uncachedIn, dOut, dCached / 10])
-                let rawTot = try UsageNumber.add(dIn, dOut)
+            let dIn: Int
+            let dCached: Int
+            let dOut: Int
 
-                for (k, cutoffDate) in cutoffs {
-                    if dt >= cutoffDate {
-                        usedCounts[k] = try UsageNumber.add(usedCounts[k, default: 0], effective)
-                        rawCounts[k] = try UsageNumber.add(rawCounts[k, default: 0], rawTot)
-                    }
+            if let prev = prevTuple {
+                if prev == curTuple { return }
+                dIn = try UsageNumber.difference(curIn, prev.inp)
+                dCached = try UsageNumber.difference(curCached, prev.cached)
+                dOut = try UsageNumber.difference(curOut, prev.out)
+            } else {
+                dIn = curIn
+                dCached = curCached
+                dOut = curOut
+            }
+            prevTuple = curTuple
+
+            let uncachedIn = try UsageNumber.difference(dIn, dCached)
+            let effective = try UsageNumber.sum([uncachedIn, dOut, dCached / 10])
+            let rawTot = try UsageNumber.add(dIn, dOut)
+
+            for (k, cutoffDate) in cutoffs {
+                if dt >= cutoffDate {
+                    usedCounts[k] = try UsageNumber.add(usedCounts[k, default: 0], effective)
+                    rawCounts[k] = try UsageNumber.add(rawCounts[k, default: 0], rawTot)
                 }
+            }
 
-                if dt >= cutoff30d {
-                    cost30d = try UsageNumber.add(cost30d, (Double(uncachedIn) * 2.50 + Double(dCached) * 0.25 + Double(dOut) * 10.0) / 1_000_000.0)
-                }
+            if dt >= cutoff30d {
+                cost30d = try UsageNumber.add(cost30d, (Double(uncachedIn) * 2.50 + Double(dCached) * 0.25 + Double(dOut) * 10.0) / 1_000_000.0)
             }
         }
 
@@ -454,12 +772,13 @@ enum LocalUsageCollector {
             serverPct: serverPctJSON,
             resetAt: resetAtJSON,
             planType: planType,
-            creditBalance: creditBalance
+            creditBalance: creditBalance,
+            validRecords: validRecords
         )
     }
 
     // MARK: - 2. Gemini
-    private static func collectGemini(now: Date, cutoffs: [String: Date], customPath: String? = nil, home: URL, input: BoundedInput) throws -> (
+    private static func collectGemini(now: Date, cutoffs: [String: Date], customPath: String? = nil, home: URL, input: BoundedInput, storeSources: [String: URL]? = nil) throws -> (
         used: ProviderPeriodUsageJSON,
         raw: ProviderPeriodUsageJSON,
         cost: Double
@@ -469,14 +788,16 @@ enum LocalUsageCollector {
         var cost30d: Double = 0.0
 
         let cutoff30d = cutoffs["30d"] ?? now.addingTimeInterval(-30 * 86400)
-        let agBrainBase: URL
-        if let cp = customPath, !cp.isEmpty {
+        let agBrainBase: URL?
+        if let storeSources {
+            agBrainBase = storeSources["gemini.brain"]
+        } else if let cp = customPath, !cp.isEmpty {
             agBrainBase = URL(fileURLWithPath: (cp as NSString).expandingTildeInPath)
         } else {
             agBrainBase = home.appendingPathComponent(".gemini/antigravity/brain")
         }
 
-        let transcriptFiles = try input.files(at: agBrainBase, allowedHiddenNames: [".system_generated"]).filter {
+        let transcriptFiles = try (agBrainBase.map { try input.files(at: $0, allowedHiddenNames: [".system_generated"]) } ?? []).filter {
             $0.lastPathComponent == "transcript.jsonl" || $0.lastPathComponent == "transcript_full.jsonl"
         }
         let transcriptsBySession = Dictionary(grouping: transcriptFiles) {
@@ -554,8 +875,8 @@ enum LocalUsageCollector {
         }
 
         // Gemini tmp chats
-        let chatsBase = home.appendingPathComponent(".gemini/tmp")
-        for fileURL in try input.files(at: chatsBase) {
+        let chatsBase = storeSources == nil ? home.appendingPathComponent(".gemini/tmp") : storeSources?["gemini.chats"]
+        for fileURL in try (chatsBase.map { try input.files(at: $0) } ?? []) {
             guard fileURL.pathExtension == "json", fileURL.path.contains("/chats/") else { continue }
             guard let attrs = try? fileURL.resourceValues(forKeys: [.contentModificationDateKey]),
                   let mdate = attrs.contentModificationDate,
@@ -615,7 +936,7 @@ enum LocalUsageCollector {
     }
 
     // MARK: - 3. Claude
-    private static func collectClaude(now: Date, cutoffs: [String: Date], customPath: String? = nil, home: URL, input: BoundedInput) throws -> CustomProviderUsageJSON {
+    private static func collectClaude(now: Date, cutoffs: [String: Date], customPath: String? = nil, home: URL, input: BoundedInput, storeSources: [String: URL]? = nil) throws -> CustomProviderUsageJSON {
         var usedCounts = ["2h": 0, "5h": 0, "1d": 0, "7d": 0, "30d": 0]
         var cost30d: Double = 0.0
 
@@ -669,8 +990,17 @@ enum LocalUsageCollector {
         var statusLabel = "Pro"
         let claudeJSONPath = claudeBase.appendingPathComponent(".claude.json")
         let defaultClaudeJSON = home.appendingPathComponent(".claude.json")
-        let cData = try input.dataIfPresent(at: claudeJSONPath)
-            ?? (claudeJSONPath == defaultClaudeJSON ? nil : try input.dataIfPresent(at: defaultClaudeJSON))
+        let internalData = try input.dataIfPresent(at: claudeJSONPath)
+        let cData: Data?
+        if let internalData {
+            cData = internalData
+        } else if let storeSources {
+            cData = try storeSources["claude.settings"].map { try input.data(at: $0) }
+        } else if claudeJSONPath == defaultClaudeJSON {
+            cData = nil
+        } else {
+            cData = try input.dataIfPresent(at: defaultClaudeJSON)
+        }
 
         if let cData,
            let cObj = try? JSONSerialization.jsonObject(with: cData) as? [String: Any] {
@@ -718,7 +1048,7 @@ enum LocalUsageCollector {
     }
 
     // MARK: - 4. GrokBot
-    private static func collectGrokBot(now: Date, cutoffs: [String: Date], customPath: String? = nil, home: URL, input: BoundedInput) throws -> CustomProviderUsageJSON? {
+    private static func collectGrokBot(now: Date, cutoffs: [String: Date], customPath: String? = nil, home: URL, input: BoundedInput, explicitOnly: Bool = false) throws -> CustomProviderUsageJSON? {
         let appSupport: URL
         if let cp = customPath, !cp.isEmpty {
             appSupport = URL(fileURLWithPath: (cp as NSString).expandingTildeInPath)
@@ -729,7 +1059,9 @@ enum LocalUsageCollector {
         let dotGrok = home.appendingPathComponent(".grokbot")
 
         let hasAppSupport = try fileInfoIfPresent(at: appSupport) != nil
-        let hasDotGrok = try fileInfoIfPresent(at: dotGrok) != nil
+        let hasDotGrok: Bool
+        if explicitOnly { hasDotGrok = false }
+        else { hasDotGrok = try fileInfoIfPresent(at: dotGrok) != nil }
 
         if !hasAppSupport && !hasDotGrok {
             return nil
@@ -968,7 +1300,7 @@ enum LocalUsageCollector {
     }
 
     // MARK: - 7. Cursor
-    private static func collectCursor(now: Date, cutoffs: [String: Date], customPath: String? = nil, home: URL, input: BoundedInput) throws -> CustomProviderUsageJSON? {
+    private static func collectCursor(now: Date, cutoffs: [String: Date], customPath: String? = nil, home: URL, input: BoundedInput, explicitOnly: Bool = false) throws -> CustomProviderUsageJSON? {
         let cursorAppSupport: URL
         if let cp = customPath, !cp.isEmpty {
             cursorAppSupport = URL(fileURLWithPath: (cp as NSString).expandingTildeInPath)
@@ -980,7 +1312,9 @@ enum LocalUsageCollector {
 
         let appSupportInfo = try fileInfoIfPresent(at: cursorAppSupport)
         let hasAppSupport = appSupportInfo != nil
-        let hasDotCursor = try fileInfoIfPresent(at: dotCursor) != nil
+        let hasDotCursor: Bool
+        if explicitOnly { hasDotCursor = false }
+        else { hasDotCursor = try fileInfoIfPresent(at: dotCursor) != nil }
 
         if !hasAppSupport && !hasDotCursor {
             return nil
@@ -993,8 +1327,13 @@ enum LocalUsageCollector {
                 throw BoundedInput.Failure.file
             }
             let controlDir = cursorAppSupport.appendingPathComponent("AgentStores/cursor_agent_stores/.control")
-            let hasControl = appMode == S_IFDIR ? try fileInfoIfPresent(at: controlDir) != nil : false
-            let pinsDir = hasControl ? controlDir : cursorAppSupport
+            let pinsDir: URL
+            if explicitOnly {
+                pinsDir = try storeControlDirectory(at: cursorAppSupport) ?? cursorAppSupport
+            } else {
+                let hasControl = appMode == S_IFDIR ? try fileInfoIfPresent(at: controlDir) != nil : false
+                pinsDir = hasControl ? controlDir : cursorAppSupport
+            }
 
             for fileURL in try input.files(at: pinsDir, includeHidden: true) {
                 guard fileURL.pathExtension == "json" else { continue }

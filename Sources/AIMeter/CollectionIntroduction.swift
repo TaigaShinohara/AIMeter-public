@@ -47,7 +47,12 @@ struct CollectionIntroductionView: View {
 
             VStack(alignment: .leading, spacing: 8) {
                 introductionDetail("読み取る内容", text: "利用量の情報を読み、数値がないログでは会話本文の文字数を端末内で一時的に使うことがあります。")
+                #if AIMETER_APP_STORE
+                introductionDetail("保存と通信", text: "集計はこのMacに保存します。任意のAPI連携を設定すると、キーなどをその連携先の認証に使い、利用量を照会します。アプリの更新はMac App Storeから行います。")
+                introductionDetail("ストア版の設定", text: "GitHub版とは別のアプリです。設定やAPIキーは引き継がれないため、このアプリで設定してください。")
+                #else
                 introductionDetail("保存と通信", text: "集計はこのMacに保存し、会話本文は集計へ保存せず外部へ送りません。任意のAPI連携を設定すると、キーなどをその連携先の認証に使い、利用量を照会します。更新の確認・取得ではGitHubへ接続します。")
+                #endif
                 introductionDetail("表示の意味", text: "各AIサービスとは独立した非公式ツールです。設定上限からの目安や推定使用量は、公式の残量・請求額とは異なることがあります。")
                 introductionDetail("いつでも停止", text: "「設定 → サービス連携」でサービスを無効にすると、そのサービスの収集と任意API取得を停止します。アプリの終了でも収集を停止できます。")
             }

@@ -244,6 +244,16 @@ final class UsageMonitor: ObservableObject {
          keychainOperations: KeychainHelper.Operations = .live,
          gcloudTokenProvider: ((APIReadBudget, IntegrationPermit) async -> String?)? = nil,
          localCollector: ((Set<String>, IntegrationPermit) async throws -> LocalUsageData)? = nil) {
+        #if AIMETER_APP_STORE
+        // Validate before reading preferences or starting any integration. The
+        // package containing DistributionConfiguration may be built without the
+        // application target's compilation conditions.
+        do {
+            _ = try DistributionConfiguration(infoDictionary: Bundle.main.infoDictionary ?? [:], requireAppStore: true)
+        } catch {
+            fatalError("App Store distribution configuration is missing or invalid")
+        }
+        #endif
         // Detached models do not start monitoring; a test can explicitly enable
         // the new-install boundary without starting live collection or timers.
         self.requiresCollectionIntroduction = requiresCollectionIntroduction
