@@ -12,6 +12,7 @@
 		16E7E50FCA3002A8B801E28E /* SupportContact.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0E2E3E5BCE512C9A5872D80 /* SupportContact.swift */; };
 		19969295817EBB11A6F4B1F7 /* StoreBookmarkStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3392C67F51872C620FC6B6C /* StoreBookmarkStore.swift */; };
 		1DD16D267E1E4771D2470C0C /* StoreAccessCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2E9100C3E4498BCC8AF9E8C /* StoreAccessCoordinator.swift */; };
+		211FA085621A8223A63691AD /* StoreCursorCollector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0FF4E8DAF0E02150ECACC8 /* StoreCursorCollector.swift */; };
 		28B6051A3E41F878D9DC59E6 /* LICENSE in Resources */ = {isa = PBXBuildFile; fileRef = F6D52C261B9448ABD052B216 /* LICENSE */; };
 		29BF3770DFE913E60D2FF826 /* AIMeterWidgetUI in Frameworks */ = {isa = PBXBuildFile; productRef = 165A5295AF9CA39B70C2A192 /* AIMeterWidgetUI */; };
 		2ACDB405061911EBAE50FF9A /* AIMeterCore in Frameworks */ = {isa = PBXBuildFile; productRef = C7E6FC8BB7FB3816ED53A4AC /* AIMeterCore */; };
@@ -30,6 +31,7 @@
 		78283C37277595493880FAD5 /* StoreBuildGuard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69F28C3D4E4263D7061A9FB8 /* StoreBuildGuard.swift */; };
 		7B8BE933D0587481E38491F7 /* BoundedProcess.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9AAB17B160FD9872B01E415 /* BoundedProcess.swift */; };
 		827CCDFEF7A17A8EA57E8694 /* IntegrationPermit.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E5ACA942C7FE80E2FB851F8 /* IntegrationPermit.swift */; };
+		82BF30ECD2CC07365EE100AD /* StoreGrokCollector.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA3BA9B840E9FD5957DD47A1 /* StoreGrokCollector.swift */; };
 		854408D0E7E00060A8CA5991 /* WindsurfDatabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9AE4EC0E02B2D2FE99CB7092 /* WindsurfDatabase.swift */; };
 		86803A8A07CB88F57500D9EB /* RefreshSequence.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD421E10DC1EC6DD927715A9 /* RefreshSequence.swift */; };
 		86942AFA1AC2986B69F53DAE /* ProviderPathPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60201A65D2B4C6CA5B7797E1 /* ProviderPathPreferences.swift */; };
@@ -110,12 +112,14 @@
 		83916F76D2C6C3E034DAAA1D /* StoreSafeFileTree.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StoreSafeFileTree.swift; sourceTree = "<group>"; };
 		8E5ACA942C7FE80E2FB851F8 /* IntegrationPermit.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = IntegrationPermit.swift; sourceTree = "<group>"; };
 		9AE4EC0E02B2D2FE99CB7092 /* WindsurfDatabase.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WindsurfDatabase.swift; sourceTree = "<group>"; };
+		9B0FF4E8DAF0E02150ECACC8 /* StoreCursorCollector.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StoreCursorCollector.swift; sourceTree = "<group>"; };
 		A5AF30AFA1A64A7601AB6FF3 /* Widget.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; path = Widget.entitlements; sourceTree = "<group>"; };
 		AD421E10DC1EC6DD927715A9 /* RefreshSequence.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RefreshSequence.swift; sourceTree = "<group>"; };
 		B2E9100C3E4498BCC8AF9E8C /* StoreAccessCoordinator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StoreAccessCoordinator.swift; sourceTree = "<group>"; };
 		B6572CF399803324E68B6394 /* AntigravityQuotaClient.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AntigravityQuotaClient.swift; sourceTree = "<group>"; };
 		B7C8B42F9A889F69676C1A95 /* SetupWizardView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SetupWizardView.swift; sourceTree = "<group>"; };
 		BA2B87847111CDE88FD8CCE6 /* AntigravityPresentation.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AntigravityPresentation.swift; sourceTree = "<group>"; };
+		BA3BA9B840E9FD5957DD47A1 /* StoreGrokCollector.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StoreGrokCollector.swift; sourceTree = "<group>"; };
 		BCF7F904B3A82DC9A4432969 /* HelpView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HelpView.swift; sourceTree = "<group>"; };
 		BF8B43D8A8A7EF2E3D574531 /* LocalUsageCollector.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LocalUsageCollector.swift; sourceTree = "<group>"; };
 		C0E45B5F70990D4FE1569CF5 /* AppUpdater.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AppUpdater.swift; sourceTree = "<group>"; };
@@ -209,6 +213,8 @@
 				FB76B7DF16C8ADE4F27BA768 /* StoreGeminiCollector.swift */,
 				734E846146037FBFD44AA072 /* StoreClaudeCollector.swift */,
 				E88576457073D553EB7AE629 /* StoreCopilotCollector.swift */,
+				9B0FF4E8DAF0E02150ECACC8 /* StoreCursorCollector.swift */,
+				BA3BA9B840E9FD5957DD47A1 /* StoreGrokCollector.swift */,
 			);
 			name = AIMeter;
 			path = AIMeter;
@@ -428,6 +434,8 @@
 				70175EF2AB547E06564DD0F5 /* StoreGeminiCollector.swift in Sources */,
 				8C3648468AE59D492F7FB22B /* StoreClaudeCollector.swift in Sources */,
 				B81652FE5203C392697524A3 /* StoreCopilotCollector.swift in Sources */,
+				211FA085621A8223A63691AD /* StoreCursorCollector.swift in Sources */,
+				82BF30ECD2CC07365EE100AD /* StoreGrokCollector.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
