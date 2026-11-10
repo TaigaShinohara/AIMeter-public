@@ -44,6 +44,7 @@ final class StoreGeminiCollectorTests: XCTestCase {
         XCTAssertEqual(result.used, direct.geminiUsedByPeriod)
         XCTAssertEqual(result.cost, direct.geminiCostUSD)
         XCTAssertEqual(result.used.monthly, 2_600_092)
+        XCTAssertFalse(result.brainUsesEstimate)
     }
     func testSelectionAndInvalidPartialStates() throws {
         let row = "{\"created_at\":\"\(timestamp)\",\"input_tokens\":12,\"output_tokens\":1}"
@@ -85,6 +86,30 @@ final class StoreGeminiCollectorTests: XCTestCase {
         let mixed = try collect(chats: false)
         XCTAssertEqual(mixed.brain, .partial)
         XCTAssertEqual(mixed.used.monthly, 2)
+        XCTAssertTrue(mixed.brainUsesEstimate)
+    }
+
+    func testEmptySelectedFolderIsNotTheSameAsInvalidData() throws {
+        let empty = try collect()
+        XCTAssertEqual(empty.brain, .notDetected)
+        XCTAssertEqual(empty.chats, .notDetected)
+        XCTAssertFalse(empty.brainUsesEstimate)
+        try write(brain.appendingPathComponent("s/transcript.jsonl"), "{bad}")
+        XCTAssertEqual(try collect(chats: false).brain, .invalid)
+    }
+
+    func testEstimateFlagReflectsCurrentDeduplicatedRows() throws {
+        let old = ISO8601DateFormatter().string(from: now.addingTimeInterval(-31 * 86400))
+        let estimate = "{\"created_at\":\"\(timestamp)\",\"content\":\"abcdefgh\"}"
+        let expired = "{\"created_at\":\"\(old)\",\"content\":\"abcdefgh\"}"
+        let dir = brain.appendingPathComponent("s/.system_generated/logs")
+        try write(dir.appendingPathComponent("transcript.jsonl"), expired)
+        XCTAssertFalse(try collect(chats: false).brainUsesEstimate)
+        try write(dir.appendingPathComponent("transcript.jsonl"), estimate)
+        try write(dir.appendingPathComponent("transcript_full.jsonl"), estimate)
+        let current = try collect(chats: false)
+        XCTAssertTrue(current.brainUsesEstimate)
+        XCTAssertEqual(current.used.monthly, 2)
     }
 
     func testChatsKeepValidMessagesWhenOtherEntriesAreInvalid() throws {

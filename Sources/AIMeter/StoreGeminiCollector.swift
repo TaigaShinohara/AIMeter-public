@@ -5,13 +5,15 @@ import AIMeterCore
 /// Experimental only. The caller owns each optional security-scoped directory FD.
 /// A nil FD is unselected; no fallback path is consulted.
 enum StoreGeminiCollector {
-    enum SourceState: Equatable { case unselected, invalid, partial, complete }
+    enum SourceState: Equatable { case unselected, notDetected, invalid, partial, complete }
     struct Result: Equatable {
         let brain: SourceState
         let chats: SourceState
         let used: ProviderPeriodUsageJSON
         let raw: ProviderPeriodUsageJSON
         let cost: Double
+        /// True only when an included brain record used the text-length estimate.
+        let brainUsesEstimate: Bool
     }
     struct Limits {
         var tree = StoreSafeFileTree.Limits()
@@ -82,6 +84,7 @@ enum StoreGeminiCollector {
             if date >= cutoff { cost = try UsageNumber.add(cost, stepCost) }
         }
         var brainValid = 0, brainInvalid = 0
+        var brainUsesEstimate = false
         if let brainFiles {
             let groups = Dictionary(grouping: brainFiles) { Array($0.path.dropLast()) }
             for key in groups.keys.sorted(by: { $0.lexicographicallyPrecedes($1) }) {
@@ -98,6 +101,7 @@ enum StoreGeminiCollector {
                               let timestamp = obj["created_at"] as? String,
                               let date = LocalUsageCollector.parseISODate(timestamp) else { brainInvalid += 1; continue }
                         let effective: Int, rawCount: Int, stepCost: Double
+                        let estimated: Bool
                         let tokenKeys = ["input_tokens", "cache_read_tokens", "output_tokens"]
                         let hasTokenValues = tokenKeys.contains { obj[$0] != nil }
                         if hasTokenValues {
@@ -110,11 +114,13 @@ enum StoreGeminiCollector {
                             let sum = try UsageNumber.sum([inp, cached, out])
                             effective = try UsageNumber.sum([inp, out, cached / 10]); rawCount = sum
                             stepCost = (Double(inp) * 1.25 + Double(cached) * 0.3125 + Double(out) * 5) / 1_000_000
+                            estimated = false
                         } else {
                             let content = (obj["content"] as? String ?? "") + (obj["thinking"] as? String ?? "")
                             guard !content.isEmpty else { brainInvalid += 1; continue }
                             effective = max(1, content.count / 4); rawCount = effective
                             stepCost = Double(effective) * 2 / 1_000_000
+                            estimated = true
                         }
                         brainValid += 1
                         guard date >= cutoff else { continue }
@@ -124,6 +130,7 @@ enum StoreGeminiCollector {
                             if index == 0 { unmatched[fingerprint, default: 0] += 1 }
                             else if let count = unmatched[fingerprint], count > 0 { unmatched[fingerprint] = count - 1; continue }
                         }
+                        if estimated { brainUsesEstimate = true }
                         try add(date: date, effective: effective, rawCount: rawCount, stepCost: stepCost)
                     }
                 }
@@ -158,13 +165,14 @@ enum StoreGeminiCollector {
         }
         func state(_ selected: Bool, _ valid: Int, _ invalid: Int) -> SourceState {
             if !selected { return .unselected }
-            if valid == 0 { return .invalid }
+            if valid == 0 { return invalid > 0 ? .invalid : .notDetected }
             return invalid > 0 ? .partial : .complete
         }
         func periods(_ a: [Int]) -> ProviderPeriodUsageJSON {
             ProviderPeriodUsageJSON(twoHours: a[0], fiveHours: a[1], daily: a[2], weekly: a[3], monthly: a[4])
         }
         return Result(brain: state(brainFD != nil, brainValid, brainInvalid), chats: state(chatsFD != nil, chatValid, chatInvalid),
-                      used: periods(used), raw: periods(raw), cost: round(cost * 100) / 100)
+                      used: periods(used), raw: periods(raw), cost: round(cost * 100) / 100,
+                      brainUsesEstimate: brainUsesEstimate)
     }
 }
