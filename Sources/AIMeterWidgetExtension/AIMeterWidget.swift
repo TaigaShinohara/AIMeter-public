@@ -47,21 +47,27 @@ struct AIMeterTimelineProvider: TimelineProvider {
     }
 }
 
-// MARK: - Production wrapper (identity and data path remain unchanged)
+// MARK: - Production wrapper
 struct AIMeterWidgetEntryView: View {
     @Environment(\.widgetFamily) var family
     let entry: AIMeterWidgetEntry
 
     var body: some View {
         AIMeterWidgetSurface(snapshot: entry.snapshot, family: family)
-            .widgetURL(URL(string: "aimeter://"))
+            .widgetURL(URL(string: "\(AIMeterWidget.distribution.urlScheme)://"))
     }
 }
 
 // MARK: - Main Widget Definition
 @main
 struct AIMeterWidget: Widget {
-    let kind: String = "com.local.AIMeter.widget"
+    // Invalid metadata cannot silently register the direct-distribution widget.
+    #if AIMETER_APP_STORE
+    static let distribution = try! DistributionConfiguration(infoDictionary: Bundle.main.infoDictionary ?? [:], requireAppStore: true)
+    #else
+    static let distribution = try! DistributionConfiguration.current()
+    #endif
+    let kind: String = AIMeterWidget.distribution.widgetKind
 
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: kind, provider: AIMeterTimelineProvider()) { entry in

@@ -9,6 +9,7 @@ let package = Package(
     products: [
         .executable(name: "AIMeter", targets: ["AIMeter"]),
         .library(name: "AIMeterCore", targets: ["AIMeterCore"]),
+        .library(name: "AIMeterWidgetUI", targets: ["AIMeterWidgetUI"]),
         .executable(name: "AIMeterWidgetQAHost", targets: ["AIMeterWidgetQAHost"]),
         .executable(name: "AIMeterWidgetQAExtension", targets: ["AIMeterWidgetQAExtension"])
     ],

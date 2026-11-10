@@ -75,7 +75,14 @@ private struct GeneralSettingsView: View {
 
     var body: some View {
         SettingsForm {
+            #if AIMETER_APP_STORE
+            SettingsSection("アプリのアップデート") {
+                Text("アップデートはMac App Storeから行ってください。")
+                    .foregroundStyle(.secondary)
+            }
+            #else
             AppUpdateSettingsSection()
+            #endif
 
             SettingsSection("起動とウィンドウ") {
                 SettingsToggle("Mac ログイン時に自動起動", isOn: Binding(
@@ -894,9 +901,15 @@ private struct HelpSettingsView: View {
                         .font(.title3)
                         .foregroundStyle(.green)
 
+                    #if AIMETER_APP_STORE
+                    Text("ローカルログはMac内で集計します。任意の連携を有効にした場合のみ、各サービスに応じた通信を行います。アプリのアップデートはMac App Storeから行います。")
+                        .font(.body)
+                        .foregroundStyle(.secondary)
+                    #else
                     Text("ローカルログはMac内で集計します。任意のOpenAI・GCP連携を有効にすると公式サービスへ利用量・費用を照会します。Antigravity連携は同じMac内の正規アプリと通信します。アプリのアップデートはボタンを押したときにGitHubへ確認・ダウンロードします。コードやプロンプト本文をこれらの要求へ含めません。")
                         .font(.body)
                         .foregroundStyle(.secondary)
+                    #endif
                     Spacer()
                 }
             }

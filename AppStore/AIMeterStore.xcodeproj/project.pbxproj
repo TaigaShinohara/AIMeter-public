@@ -1,0 +1,716 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 46;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		0ECD9024DB0AEC0A389E27F0 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E35CB1DDF9B1568722E1E293 /* Cocoa.framework */; };
+		0F44337E417C53FAE3BBB842 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EA0A3AD765F42F3B51962A7 /* SettingsView.swift */; };
+		16E7E50FCA3002A8B801E28E /* SupportContact.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0E2E3E5BCE512C9A5872D80 /* SupportContact.swift */; };
+		19969295817EBB11A6F4B1F7 /* StoreBookmarkStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3392C67F51872C620FC6B6C /* StoreBookmarkStore.swift */; };
+		1DD16D267E1E4771D2470C0C /* StoreAccessCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2E9100C3E4498BCC8AF9E8C /* StoreAccessCoordinator.swift */; };
+		28B6051A3E41F878D9DC59E6 /* LICENSE in Resources */ = {isa = PBXBuildFile; fileRef = F6D52C261B9448ABD052B216 /* LICENSE */; };
+		29BF3770DFE913E60D2FF826 /* AIMeterWidgetUI in Frameworks */ = {isa = PBXBuildFile; productRef = 165A5295AF9CA39B70C2A192 /* AIMeterWidgetUI */; };
+		2ACDB405061911EBAE50FF9A /* AIMeterCore in Frameworks */ = {isa = PBXBuildFile; productRef = C7E6FC8BB7FB3816ED53A4AC /* AIMeterCore */; };
+		2F81590260EAA2667A7243F4 /* SettingsStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = D89D4B7E4B5BB5D829703BA8 /* SettingsStyle.swift */; };
+		36549F5D533335DC8167A420 /* StoreSafeFileTree.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83916F76D2C6C3E034DAAA1D /* StoreSafeFileTree.swift */; };
+		3711C1322730229F18FA9B16 /* CredentialMaintenance.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3EAA078AE4DA585EAF16BC15 /* CredentialMaintenance.swift */; };
+		39BB6A2CE17590513E50C1F3 /* LocalUsageCollector.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF8B43D8A8A7EF2E3D574531 /* LocalUsageCollector.swift */; };
+		40D80C72B1BDB670CF604952 /* IntegrationSettingsObservation.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEEB77F99E9CB397042922A7 /* IntegrationSettingsObservation.swift */; };
+		4FE8F66B2AF99F65BE597A75 /* BoundedAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0B86CC6D524FADED62521F3 /* BoundedAPIClient.swift */; };
+		623395467B51701674B58EB6 /* OpenAICredentialState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F41E39CD087305C466A037D /* OpenAICredentialState.swift */; };
+		65F7116DE4303E76D8EEFDC3 /* StoreScopedDirectory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452F66FE029C7C12DB669099 /* StoreScopedDirectory.swift */; };
+		677864276779E53DF64A5261 /* AntigravityQuotaClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6572CF399803324E68B6394 /* AntigravityQuotaClient.swift */; };
+		6CE2F22E953313EABE3FB8EB /* AppUpdater.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0E45B5F70990D4FE1569CF5 /* AppUpdater.swift */; };
+		70175EF2AB547E06564DD0F5 /* StoreGeminiCollector.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB76B7DF16C8ADE4F27BA768 /* StoreGeminiCollector.swift */; };
+		77E4A1759D46375204AA2F4A /* StoreSourcePickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBB7E932D5C600567166E6B5 /* StoreSourcePickerView.swift */; };
+		78283C37277595493880FAD5 /* StoreBuildGuard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69F28C3D4E4263D7061A9FB8 /* StoreBuildGuard.swift */; };
+		7B8BE933D0587481E38491F7 /* BoundedProcess.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9AAB17B160FD9872B01E415 /* BoundedProcess.swift */; };
+		827CCDFEF7A17A8EA57E8694 /* IntegrationPermit.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E5ACA942C7FE80E2FB851F8 /* IntegrationPermit.swift */; };
+		854408D0E7E00060A8CA5991 /* WindsurfDatabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9AE4EC0E02B2D2FE99CB7092 /* WindsurfDatabase.swift */; };
+		86803A8A07CB88F57500D9EB /* RefreshSequence.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD421E10DC1EC6DD927715A9 /* RefreshSequence.swift */; };
+		86942AFA1AC2986B69F53DAE /* ProviderPathPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60201A65D2B4C6CA5B7797E1 /* ProviderPathPreferences.swift */; };
+		9109578BBCB30E5427D4F640 /* LocalQuotaTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08FADC08C8F72CABEF8A73D6 /* LocalQuotaTransport.swift */; };
+		9B50190970676BA38501D570 /* AppIcon.icns in Resources */ = {isa = PBXBuildFile; fileRef = 01572137FEB0D162DB68F155 /* AppIcon.icns */; };
+		9DF77C2780BD323B15E2B251 /* CollectionIntroduction.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53C12E4C9C02BEE1FDE18ACB /* CollectionIntroduction.swift */; };
+		9E00CE78531C88F83CF57420 /* StoreBuildGuard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69F28C3D4E4263D7061A9FB8 /* StoreBuildGuard.swift */; };
+		A141AE6339FBF3B27B4911E3 /* CharacterSummaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA6A056F9044AA73AEB0B81B /* CharacterSummaryView.swift */; };
+		AAB15BA123E7669AF682C9E3 /* LocalSocketIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F6047F39F97AD344F889A4B /* LocalSocketIdentity.swift */; };
+		AB1DCB76AAA064D4020F4203 /* LiquidBallArtwork.swift in Sources */ = {isa = PBXBuildFile; fileRef = F02B2C69AFDA7E20F0A3C53A /* LiquidBallArtwork.swift */; };
+		B123BF27AB7F1F2BF059A253 /* AIMeterStoreWidget.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = 67FFCFF57151AF5F89D0ADD7 /* AIMeterStoreWidget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		B7E9544522AF4C1F2460817D /* AIMeterCore in Frameworks */ = {isa = PBXBuildFile; productRef = C56C6B422C113A24E7257387 /* AIMeterCore */; };
+		B83CF2635A80627246FEFB4B /* SetupWizardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7C8B42F9A889F69676C1A95 /* SetupWizardView.swift */; };
+		B9CC4DE0AEFDDB330AD3C2BC /* AntigravityPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA2B87847111CDE88FD8CCE6 /* AntigravityPresentation.swift */; };
+		BA9B817F82D095CCE7AC490B /* GcloudEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8F7A963D6393BC509EBD96E /* GcloudEnvironment.swift */; };
+		D6845632DA65F7627DEF4350 /* StoreSourceCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = F71C0C9B7EC3CABAC3181C0E /* StoreSourceCatalog.swift */; };
+		DC4FCDB26C2EE890CDC108F8 /* StoreSourceState.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEEEBD11CB769B09CA10C6F3 /* StoreSourceState.swift */; };
+		DE1FA4CF21FDACF246E97837 /* PrivateSnapshotManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 274EF35A7D018F1D5F723D43 /* PrivateSnapshotManager.swift */; };
+		E6E7E3E128032D224874DE94 /* CharacterVisibilityReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4743CE71BDABE2A960F4A16D /* CharacterVisibilityReader.swift */; };
+		E9CE17BA760CDC3D34906316 /* AIMeterApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE739EC164B462FC32ED513F /* AIMeterApp.swift */; };
+		EA538799693E6A3811A99DDA /* HelpView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BCF7F904B3A82DC9A4432969 /* HelpView.swift */; };
+		F1541FBFD3A018B7AE2F4422 /* PathValidation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 364A6F0A40A81EDC6BB02429 /* PathValidation.swift */; };
+		F1B488DC98E700147B79D478 /* AIMeterWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FE699011582263FCF61CCB0 /* AIMeterWidget.swift */; };
+		F2DC351206A9CBA5B0E6B718 /* KeychainHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = E423863279622C818FD50814 /* KeychainHelper.swift */; };
+		FC69F63FFAF1A9079AA16C78 /* LiquidGlass.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57EA5648A956FCE7177C84E7 /* LiquidGlass.swift */; };
+		FF02D700CC13FF2F85A2F69C /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E35CB1DDF9B1568722E1E293 /* Cocoa.framework */; };
+		FF412DE67EE450F6A75B28D2 /* UsageDisplayModePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D7B80740EBCCF30F669E880 /* UsageDisplayModePicker.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		0AC23EE2B41D0E922E6B7BE3 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 9C5A4530EB764A83FF223413 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = B63D117FD8A9CCA4B1C1ABDD;
+			remoteInfo = AIMeterStoreWidget;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		E7ABEF2F0232088040A25AC4 /* Embed App Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				B123BF27AB7F1F2BF059A253 /* AIMeterStoreWidget.appex in Embed App Extensions */,
+			);
+			name = "Embed App Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		01572137FEB0D162DB68F155 /* AppIcon.icns */ = {isa = PBXFileReference; includeInIndex = 1; name = AppIcon.icns; path = Resources/AppIcon.icns; sourceTree = "<group>"; };
+		08FADC08C8F72CABEF8A73D6 /* LocalQuotaTransport.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LocalQuotaTransport.swift; sourceTree = "<group>"; };
+		1D7B80740EBCCF30F669E880 /* UsageDisplayModePicker.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = UsageDisplayModePicker.swift; sourceTree = "<group>"; };
+		274EF35A7D018F1D5F723D43 /* PrivateSnapshotManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PrivateSnapshotManager.swift; sourceTree = "<group>"; };
+		2F41E39CD087305C466A037D /* OpenAICredentialState.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = OpenAICredentialState.swift; sourceTree = "<group>"; };
+		302A90739E8A21ED4242A6C3 /* Widget-Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = "Widget-Info.plist"; sourceTree = "<group>"; };
+		364A6F0A40A81EDC6BB02429 /* PathValidation.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PathValidation.swift; sourceTree = "<group>"; };
+		3B32F6F17823F007EC1D43D0 /* AIMeterStore.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AIMeterStore.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		3EAA078AE4DA585EAF16BC15 /* CredentialMaintenance.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CredentialMaintenance.swift; sourceTree = "<group>"; };
+		452F66FE029C7C12DB669099 /* StoreScopedDirectory.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StoreScopedDirectory.swift; sourceTree = "<group>"; };
+		4743CE71BDABE2A960F4A16D /* CharacterVisibilityReader.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CharacterVisibilityReader.swift; sourceTree = "<group>"; };
+		53C12E4C9C02BEE1FDE18ACB /* CollectionIntroduction.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CollectionIntroduction.swift; sourceTree = "<group>"; };
+		57EA5648A956FCE7177C84E7 /* LiquidGlass.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LiquidGlass.swift; sourceTree = "<group>"; };
+		59CF81022033279C996289EB /* App.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; path = App.entitlements; sourceTree = "<group>"; };
+		5EA0A3AD765F42F3B51962A7 /* SettingsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		60201A65D2B4C6CA5B7797E1 /* ProviderPathPreferences.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ProviderPathPreferences.swift; sourceTree = "<group>"; };
+		67FFCFF57151AF5F89D0ADD7 /* AIMeterStoreWidget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = AIMeterStoreWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		69F28C3D4E4263D7061A9FB8 /* StoreBuildGuard.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StoreBuildGuard.swift; sourceTree = "<group>"; };
+		6FE699011582263FCF61CCB0 /* AIMeterWidget.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AIMeterWidget.swift; sourceTree = "<group>"; };
+		7F6047F39F97AD344F889A4B /* LocalSocketIdentity.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LocalSocketIdentity.swift; sourceTree = "<group>"; };
+		83916F76D2C6C3E034DAAA1D /* StoreSafeFileTree.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StoreSafeFileTree.swift; sourceTree = "<group>"; };
+		8E5ACA942C7FE80E2FB851F8 /* IntegrationPermit.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = IntegrationPermit.swift; sourceTree = "<group>"; };
+		9AE4EC0E02B2D2FE99CB7092 /* WindsurfDatabase.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WindsurfDatabase.swift; sourceTree = "<group>"; };
+		A5AF30AFA1A64A7601AB6FF3 /* Widget.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; path = Widget.entitlements; sourceTree = "<group>"; };
+		AD421E10DC1EC6DD927715A9 /* RefreshSequence.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RefreshSequence.swift; sourceTree = "<group>"; };
+		B2E9100C3E4498BCC8AF9E8C /* StoreAccessCoordinator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StoreAccessCoordinator.swift; sourceTree = "<group>"; };
+		B6572CF399803324E68B6394 /* AntigravityQuotaClient.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AntigravityQuotaClient.swift; sourceTree = "<group>"; };
+		B7C8B42F9A889F69676C1A95 /* SetupWizardView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SetupWizardView.swift; sourceTree = "<group>"; };
+		BA2B87847111CDE88FD8CCE6 /* AntigravityPresentation.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AntigravityPresentation.swift; sourceTree = "<group>"; };
+		BCF7F904B3A82DC9A4432969 /* HelpView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HelpView.swift; sourceTree = "<group>"; };
+		BF8B43D8A8A7EF2E3D574531 /* LocalUsageCollector.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LocalUsageCollector.swift; sourceTree = "<group>"; };
+		C0E45B5F70990D4FE1569CF5 /* AppUpdater.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AppUpdater.swift; sourceTree = "<group>"; };
+		C552B33C8FB545F9E3DC537C /* Store.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; path = Store.xcconfig; sourceTree = "<group>"; };
+		D0B86CC6D524FADED62521F3 /* BoundedAPIClient.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BoundedAPIClient.swift; sourceTree = "<group>"; };
+		D0E2E3E5BCE512C9A5872D80 /* SupportContact.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SupportContact.swift; sourceTree = "<group>"; };
+		D89D4B7E4B5BB5D829703BA8 /* SettingsStyle.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SettingsStyle.swift; sourceTree = "<group>"; };
+		DA6A056F9044AA73AEB0B81B /* CharacterSummaryView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CharacterSummaryView.swift; sourceTree = "<group>"; };
+		DE739EC164B462FC32ED513F /* AIMeterApp.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AIMeterApp.swift; sourceTree = "<group>"; };
+		DEEB77F99E9CB397042922A7 /* IntegrationSettingsObservation.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = IntegrationSettingsObservation.swift; sourceTree = "<group>"; };
+		E35CB1DDF9B1568722E1E293 /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = System/Library/Frameworks/Cocoa.framework; sourceTree = SDKROOT; };
+		E423863279622C818FD50814 /* KeychainHelper.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = KeychainHelper.swift; sourceTree = "<group>"; };
+		E8F7A963D6393BC509EBD96E /* GcloudEnvironment.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GcloudEnvironment.swift; sourceTree = "<group>"; };
+		EBB7E932D5C600567166E6B5 /* StoreSourcePickerView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StoreSourcePickerView.swift; sourceTree = "<group>"; };
+		F02B2C69AFDA7E20F0A3C53A /* LiquidBallArtwork.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LiquidBallArtwork.swift; sourceTree = "<group>"; };
+		F25B1DEC9969D3AADA64F6DF /* App-Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = "App-Info.plist"; sourceTree = "<group>"; };
+		F3392C67F51872C620FC6B6C /* StoreBookmarkStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StoreBookmarkStore.swift; sourceTree = "<group>"; };
+		F6D52C261B9448ABD052B216 /* LICENSE */ = {isa = PBXFileReference; includeInIndex = 1; name = LICENSE; path = ../LICENSE; sourceTree = "<group>"; };
+		F71C0C9B7EC3CABAC3181C0E /* StoreSourceCatalog.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StoreSourceCatalog.swift; sourceTree = "<group>"; };
+		F9AAB17B160FD9872B01E415 /* BoundedProcess.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BoundedProcess.swift; sourceTree = "<group>"; };
+		FB76B7DF16C8ADE4F27BA768 /* StoreGeminiCollector.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StoreGeminiCollector.swift; sourceTree = "<group>"; };
+		FEEEBD11CB769B09CA10C6F3 /* StoreSourceState.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StoreSourceState.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		36AF192DD146E86A89DE7917 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				FF02D700CC13FF2F85A2F69C /* Cocoa.framework in Frameworks */,
+				B7E9544522AF4C1F2460817D /* AIMeterCore in Frameworks */,
+				29BF3770DFE913E60D2FF826 /* AIMeterWidgetUI in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C29EA782265B8997680720DA /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				0ECD9024DB0AEC0A389E27F0 /* Cocoa.framework in Frameworks */,
+				2ACDB405061911EBAE50FF9A /* AIMeterCore in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		0D19BF83F06856DE881E3F95 /* AIMeter */ = {
+			isa = PBXGroup;
+			children = (
+				DE739EC164B462FC32ED513F /* AIMeterApp.swift */,
+				BA2B87847111CDE88FD8CCE6 /* AntigravityPresentation.swift */,
+				B6572CF399803324E68B6394 /* AntigravityQuotaClient.swift */,
+				C0E45B5F70990D4FE1569CF5 /* AppUpdater.swift */,
+				D0B86CC6D524FADED62521F3 /* BoundedAPIClient.swift */,
+				F9AAB17B160FD9872B01E415 /* BoundedProcess.swift */,
+				DA6A056F9044AA73AEB0B81B /* CharacterSummaryView.swift */,
+				4743CE71BDABE2A960F4A16D /* CharacterVisibilityReader.swift */,
+				53C12E4C9C02BEE1FDE18ACB /* CollectionIntroduction.swift */,
+				3EAA078AE4DA585EAF16BC15 /* CredentialMaintenance.swift */,
+				E8F7A963D6393BC509EBD96E /* GcloudEnvironment.swift */,
+				BCF7F904B3A82DC9A4432969 /* HelpView.swift */,
+				8E5ACA942C7FE80E2FB851F8 /* IntegrationPermit.swift */,
+				DEEB77F99E9CB397042922A7 /* IntegrationSettingsObservation.swift */,
+				E423863279622C818FD50814 /* KeychainHelper.swift */,
+				F02B2C69AFDA7E20F0A3C53A /* LiquidBallArtwork.swift */,
+				57EA5648A956FCE7177C84E7 /* LiquidGlass.swift */,
+				08FADC08C8F72CABEF8A73D6 /* LocalQuotaTransport.swift */,
+				7F6047F39F97AD344F889A4B /* LocalSocketIdentity.swift */,
+				BF8B43D8A8A7EF2E3D574531 /* LocalUsageCollector.swift */,
+				2F41E39CD087305C466A037D /* OpenAICredentialState.swift */,
+				364A6F0A40A81EDC6BB02429 /* PathValidation.swift */,
+				274EF35A7D018F1D5F723D43 /* PrivateSnapshotManager.swift */,
+				60201A65D2B4C6CA5B7797E1 /* ProviderPathPreferences.swift */,
+				AD421E10DC1EC6DD927715A9 /* RefreshSequence.swift */,
+				D89D4B7E4B5BB5D829703BA8 /* SettingsStyle.swift */,
+				5EA0A3AD765F42F3B51962A7 /* SettingsView.swift */,
+				B7C8B42F9A889F69676C1A95 /* SetupWizardView.swift */,
+				F3392C67F51872C620FC6B6C /* StoreBookmarkStore.swift */,
+				D0E2E3E5BCE512C9A5872D80 /* SupportContact.swift */,
+				1D7B80740EBCCF30F669E880 /* UsageDisplayModePicker.swift */,
+				9AE4EC0E02B2D2FE99CB7092 /* WindsurfDatabase.swift */,
+				01572137FEB0D162DB68F155 /* AppIcon.icns */,
+				FEEEBD11CB769B09CA10C6F3 /* StoreSourceState.swift */,
+				F71C0C9B7EC3CABAC3181C0E /* StoreSourceCatalog.swift */,
+				EBB7E932D5C600567166E6B5 /* StoreSourcePickerView.swift */,
+				B2E9100C3E4498BCC8AF9E8C /* StoreAccessCoordinator.swift */,
+				83916F76D2C6C3E034DAAA1D /* StoreSafeFileTree.swift */,
+				452F66FE029C7C12DB669099 /* StoreScopedDirectory.swift */,
+				FB76B7DF16C8ADE4F27BA768 /* StoreGeminiCollector.swift */,
+			);
+			name = AIMeter;
+			path = AIMeter;
+			sourceTree = "<group>";
+		};
+		4133FDCE0C52AF38C08B0186 /* AIMeterWidgetExtension */ = {
+			isa = PBXGroup;
+			children = (
+				6FE699011582263FCF61CCB0 /* AIMeterWidget.swift */,
+			);
+			name = AIMeterWidgetExtension;
+			path = AIMeterWidgetExtension;
+			sourceTree = "<group>";
+		};
+		4228B02D16A29F714EF61E6A /* OS X */ = {
+			isa = PBXGroup;
+			children = (
+				E35CB1DDF9B1568722E1E293 /* Cocoa.framework */,
+			);
+			name = "OS X";
+			sourceTree = "<group>";
+		};
+		4E5CD81801F665F279F3461C = {
+			isa = PBXGroup;
+			children = (
+				C1FEA2D0B77C1CC99866E9D8 /* Products */,
+				671DD4C389476DCF5F710A3C /* Frameworks */,
+				F0C08411127A48FE93F28E42 /* Configuration */,
+				6338860570A0FA4AA83513C7 /* Sources */,
+				F6D52C261B9448ABD052B216 /* LICENSE */,
+			);
+			sourceTree = "<group>";
+		};
+		6338860570A0FA4AA83513C7 /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				0D19BF83F06856DE881E3F95 /* AIMeter */,
+				4133FDCE0C52AF38C08B0186 /* AIMeterWidgetExtension */,
+			);
+			name = Sources;
+			path = ../Sources;
+			sourceTree = "<group>";
+		};
+		671DD4C389476DCF5F710A3C /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				4228B02D16A29F714EF61E6A /* OS X */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		C1FEA2D0B77C1CC99866E9D8 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				3B32F6F17823F007EC1D43D0 /* AIMeterStore.app */,
+				67FFCFF57151AF5F89D0ADD7 /* AIMeterStoreWidget.appex */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		F0C08411127A48FE93F28E42 /* Configuration */ = {
+			isa = PBXGroup;
+			children = (
+				C552B33C8FB545F9E3DC537C /* Store.xcconfig */,
+				59CF81022033279C996289EB /* App.entitlements */,
+				A5AF30AFA1A64A7601AB6FF3 /* Widget.entitlements */,
+				302A90739E8A21ED4242A6C3 /* Widget-Info.plist */,
+				69F28C3D4E4263D7061A9FB8 /* StoreBuildGuard.swift */,
+				F25B1DEC9969D3AADA64F6DF /* App-Info.plist */,
+			);
+			name = Configuration;
+			path = Configuration;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		625DA8BF974E0985D62BAE83 /* AIMeterStore */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 51E7DB02BEB4E2AF849373E3 /* Build configuration list for PBXNativeTarget "AIMeterStore" */;
+			buildPhases = (
+				8F8CC135ABB0FB0F73C2827E /* Sources */,
+				C29EA782265B8997680720DA /* Frameworks */,
+				CFC89EE53B169E3331049470 /* Resources */,
+				E7ABEF2F0232088040A25AC4 /* Embed App Extensions */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				8E6F875E7EBFF325A54A1E94 /* PBXTargetDependency */,
+			);
+			name = AIMeterStore;
+			packageProductDependencies = (
+				C7E6FC8BB7FB3816ED53A4AC /* AIMeterCore */,
+			);
+			productName = AIMeterStore;
+			productReference = 3B32F6F17823F007EC1D43D0 /* AIMeterStore.app */;
+			productType = "com.apple.product-type.application";
+		};
+		B63D117FD8A9CCA4B1C1ABDD /* AIMeterStoreWidget */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 48BE5D02037483AEAA80C2E4 /* Build configuration list for PBXNativeTarget "AIMeterStoreWidget" */;
+			buildPhases = (
+				BF007BCDDCDCF190C98231D7 /* Sources */,
+				36AF192DD146E86A89DE7917 /* Frameworks */,
+				B539B01F80F8A45175C178A0 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = AIMeterStoreWidget;
+			packageProductDependencies = (
+				C56C6B422C113A24E7257387 /* AIMeterCore */,
+				165A5295AF9CA39B70C2A192 /* AIMeterWidgetUI */,
+			);
+			productName = AIMeterStoreWidget;
+			productReference = 67FFCFF57151AF5F89D0ADD7 /* AIMeterStoreWidget.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		9C5A4530EB764A83FF223413 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				LastSwiftUpdateCheck = 1600;
+				LastUpgradeCheck = 1600;
+			};
+			buildConfigurationList = 731C548211AA96CF3104ED97 /* Build configuration list for PBXProject "AIMeterStore" */;
+			compatibilityVersion = "Xcode 3.2";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 4E5CD81801F665F279F3461C;
+			minimizedProjectReferenceProxies = 0;
+			packageReferences = (
+				348D2C2C157A054B5CBBDC3A /* XCLocalSwiftPackageReference ".." */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = C1FEA2D0B77C1CC99866E9D8 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				625DA8BF974E0985D62BAE83 /* AIMeterStore */,
+				B63D117FD8A9CCA4B1C1ABDD /* AIMeterStoreWidget */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		B539B01F80F8A45175C178A0 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		CFC89EE53B169E3331049470 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				9B50190970676BA38501D570 /* AppIcon.icns in Resources */,
+				28B6051A3E41F878D9DC59E6 /* LICENSE in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		8F8CC135ABB0FB0F73C2827E /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E9CE17BA760CDC3D34906316 /* AIMeterApp.swift in Sources */,
+				B9CC4DE0AEFDDB330AD3C2BC /* AntigravityPresentation.swift in Sources */,
+				677864276779E53DF64A5261 /* AntigravityQuotaClient.swift in Sources */,
+				6CE2F22E953313EABE3FB8EB /* AppUpdater.swift in Sources */,
+				4FE8F66B2AF99F65BE597A75 /* BoundedAPIClient.swift in Sources */,
+				7B8BE933D0587481E38491F7 /* BoundedProcess.swift in Sources */,
+				A141AE6339FBF3B27B4911E3 /* CharacterSummaryView.swift in Sources */,
+				E6E7E3E128032D224874DE94 /* CharacterVisibilityReader.swift in Sources */,
+				9DF77C2780BD323B15E2B251 /* CollectionIntroduction.swift in Sources */,
+				3711C1322730229F18FA9B16 /* CredentialMaintenance.swift in Sources */,
+				BA9B817F82D095CCE7AC490B /* GcloudEnvironment.swift in Sources */,
+				EA538799693E6A3811A99DDA /* HelpView.swift in Sources */,
+				827CCDFEF7A17A8EA57E8694 /* IntegrationPermit.swift in Sources */,
+				40D80C72B1BDB670CF604952 /* IntegrationSettingsObservation.swift in Sources */,
+				F2DC351206A9CBA5B0E6B718 /* KeychainHelper.swift in Sources */,
+				AB1DCB76AAA064D4020F4203 /* LiquidBallArtwork.swift in Sources */,
+				FC69F63FFAF1A9079AA16C78 /* LiquidGlass.swift in Sources */,
+				9109578BBCB30E5427D4F640 /* LocalQuotaTransport.swift in Sources */,
+				AAB15BA123E7669AF682C9E3 /* LocalSocketIdentity.swift in Sources */,
+				39BB6A2CE17590513E50C1F3 /* LocalUsageCollector.swift in Sources */,
+				623395467B51701674B58EB6 /* OpenAICredentialState.swift in Sources */,
+				F1541FBFD3A018B7AE2F4422 /* PathValidation.swift in Sources */,
+				DE1FA4CF21FDACF246E97837 /* PrivateSnapshotManager.swift in Sources */,
+				86942AFA1AC2986B69F53DAE /* ProviderPathPreferences.swift in Sources */,
+				86803A8A07CB88F57500D9EB /* RefreshSequence.swift in Sources */,
+				2F81590260EAA2667A7243F4 /* SettingsStyle.swift in Sources */,
+				0F44337E417C53FAE3BBB842 /* SettingsView.swift in Sources */,
+				B83CF2635A80627246FEFB4B /* SetupWizardView.swift in Sources */,
+				19969295817EBB11A6F4B1F7 /* StoreBookmarkStore.swift in Sources */,
+				16E7E50FCA3002A8B801E28E /* SupportContact.swift in Sources */,
+				FF412DE67EE450F6A75B28D2 /* UsageDisplayModePicker.swift in Sources */,
+				854408D0E7E00060A8CA5991 /* WindsurfDatabase.swift in Sources */,
+				9E00CE78531C88F83CF57420 /* StoreBuildGuard.swift in Sources */,
+				DC4FCDB26C2EE890CDC108F8 /* StoreSourceState.swift in Sources */,
+				D6845632DA65F7627DEF4350 /* StoreSourceCatalog.swift in Sources */,
+				77E4A1759D46375204AA2F4A /* StoreSourcePickerView.swift in Sources */,
+				1DD16D267E1E4771D2470C0C /* StoreAccessCoordinator.swift in Sources */,
+				36549F5D533335DC8167A420 /* StoreSafeFileTree.swift in Sources */,
+				65F7116DE4303E76D8EEFDC3 /* StoreScopedDirectory.swift in Sources */,
+				70175EF2AB547E06564DD0F5 /* StoreGeminiCollector.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		BF007BCDDCDCF190C98231D7 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				F1B488DC98E700147B79D478 /* AIMeterWidget.swift in Sources */,
+				78283C37277595493880FAD5 /* StoreBuildGuard.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		8E6F875E7EBFF325A54A1E94 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = AIMeterStoreWidget;
+			target = B63D117FD8A9CCA4B1C1ABDD /* AIMeterStoreWidget */;
+			targetProxy = 0AC23EE2B41D0E922E6B7BE3 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		0F49B89E24C85C73AAC3BD09 /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = C552B33C8FB545F9E3DC537C /* Store.xcconfig */;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGNING_ALLOWED = NO;
+				CODE_SIGN_ENTITLEMENTS = Configuration/App.entitlements;
+				CODE_SIGN_STYLE = Manual;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "$(AIMETER_STORE_DEVELOPMENT_TEAM)";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = "Configuration/App-Info.plist";
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.2.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(AIMETER_STORE_APP_BUNDLE_ID)";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		160B236DDBF8F4A30696C219 /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = C552B33C8FB545F9E3DC537C /* Store.xcconfig */;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGNING_ALLOWED = NO;
+				CODE_SIGN_ENTITLEMENTS = Configuration/Widget.entitlements;
+				CODE_SIGN_STYLE = Manual;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "$(AIMETER_STORE_DEVELOPMENT_TEAM)";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = "Configuration/Widget-Info.plist";
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.2.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(AIMETER_STORE_WIDGET_BUNDLE_ID)";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		277E70574429EDA15FBE6B27 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = C552B33C8FB545F9E3DC537C /* Store.xcconfig */;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGNING_ALLOWED = NO;
+				CODE_SIGN_ENTITLEMENTS = Configuration/Widget.entitlements;
+				CODE_SIGN_STYLE = Manual;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "$(AIMETER_STORE_DEVELOPMENT_TEAM)";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = "Configuration/Widget-Info.plist";
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.2.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(AIMETER_STORE_WIDGET_BUNDLE_ID)";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		67C8B2AB1D67501A1A6E146F /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = C552B33C8FB545F9E3DC537C /* Store.xcconfig */;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGNING_ALLOWED = NO;
+				CODE_SIGN_ENTITLEMENTS = Configuration/App.entitlements;
+				CODE_SIGN_STYLE = Manual;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "$(AIMETER_STORE_DEVELOPMENT_TEAM)";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = "Configuration/App-Info.plist";
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.2.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(AIMETER_STORE_APP_BUNDLE_ID)";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		D45EF4376A02448AB1C78656 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		F68ADDA3CE335FC6C0FCD5E2 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		48BE5D02037483AEAA80C2E4 /* Build configuration list for PBXNativeTarget "AIMeterStoreWidget" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				160B236DDBF8F4A30696C219 /* Release */,
+				277E70574429EDA15FBE6B27 /* Debug */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		51E7DB02BEB4E2AF849373E3 /* Build configuration list for PBXNativeTarget "AIMeterStore" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				0F49B89E24C85C73AAC3BD09 /* Release */,
+				67C8B2AB1D67501A1A6E146F /* Debug */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		731C548211AA96CF3104ED97 /* Build configuration list for PBXProject "AIMeterStore" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F68ADDA3CE335FC6C0FCD5E2 /* Debug */,
+				D45EF4376A02448AB1C78656 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		348D2C2C157A054B5CBBDC3A /* XCLocalSwiftPackageReference ".." */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ..;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		165A5295AF9CA39B70C2A192 /* AIMeterWidgetUI */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 348D2C2C157A054B5CBBDC3A /* XCLocalSwiftPackageReference ".." */;
+			productName = AIMeterWidgetUI;
+		};
+		C56C6B422C113A24E7257387 /* AIMeterCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 348D2C2C157A054B5CBBDC3A /* XCLocalSwiftPackageReference ".." */;
+			productName = AIMeterCore;
+		};
+		C7E6FC8BB7FB3816ED53A4AC /* AIMeterCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 348D2C2C157A054B5CBBDC3A /* XCLocalSwiftPackageReference ".." */;
+			productName = AIMeterCore;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 9C5A4530EB764A83FF223413 /* Project object */;
+}

@@ -1,9 +1,12 @@
 import Foundation
 import Security
+#if !AIMETER_SECURITY_PROBE
+import AIMeterCore
+#endif
 
 // Security operations are injectable so tests never touch the user's Keychain.
 enum KeychainHelper {
-    static let service = "com.local.AIMeter"
+    static var service: String { (try? DistributionConfiguration.current().keychainService) ?? "" }
 
     struct Operations {
         var update: ([String: Any], [String: Any]) -> OSStatus
@@ -25,6 +28,8 @@ enum KeychainHelper {
 
     @discardableResult
     static func save(key: String, value: String, operations: Operations = .live) -> Bool {
+        let service = Self.service
+        guard !service.isEmpty else { return false }
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -64,6 +69,8 @@ enum KeychainHelper {
     /// older source so the caller can retry without losing either value.
     @discardableResult
     static func addIfAbsent(key: String, value: String, operations: Operations = .live) -> Bool {
+        let service = Self.service
+        guard !service.isEmpty else { return false }
         guard !value.isEmpty, let data = value.data(using: .utf8) else { return false }
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
@@ -83,6 +90,7 @@ enum KeychainHelper {
     /// The caller may clear legacy preferences only after a successful read/save.
     static func restore(key: String, legacyValue: String, operations: Operations = .live)
         -> (value: String?, canClearLegacy: Bool) {
+        guard !service.isEmpty else { return (nil, false) }
         let (status, data) = read(key: key, operations: operations)
         if status == errSecSuccess, let data,
            let saved = String(data: data, encoding: .utf8), !saved.isEmpty {
@@ -109,6 +117,8 @@ enum KeychainHelper {
     // Keep the same query for callers that must distinguish absence from a
     // locked, denied or malformed saved item before deciding to migrate.
     static func read(key: String, operations: Operations) -> (OSStatus, Data?) {
+        let service = Self.service
+        guard !service.isEmpty else { return (errSecParam, nil) }
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,

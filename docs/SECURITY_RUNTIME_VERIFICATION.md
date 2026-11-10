@@ -15,7 +15,7 @@ productionと異なるソースから作ったツールの結果を配布候補�
 SHA-1 fingerprintである。秘密鍵の値はコマンドへ渡さない。
 
 ```sh
-swiftc -parse-as-library -target arm64-apple-macos14.0 \
+swiftc -parse-as-library -D AIMETER_SECURITY_PROBE -target arm64-apple-macos14.0 \
   -module-cache-path "$OUTPUT/module-cache" \
   scripts/verify_security_runtime.swift \
   Sources/AIMeter/KeychainHelper.swift Sources/AIMeterCore/*.swift \

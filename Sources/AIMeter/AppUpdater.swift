@@ -44,6 +44,14 @@ final class AppUpdater: ObservableObject {
     }
 
     func update(to channel: Channel) async {
+        #if AIMETER_APP_STORE
+        status = "アップデートはMac App Storeから行ってください。"
+        return
+        #else
+        guard let config = try? DistributionConfiguration.current(), config.mode == .direct else {
+            status = "このアプリの更新方法を確認できません。"
+            return
+        }
         guard !isBusy else { return }
         isBusy = true
         progress = nil
@@ -102,6 +110,7 @@ final class AppUpdater: ObservableObject {
         } catch {
             status = "更新を完了できませんでした。通信とアプリの保存先を確認し、もう一度お試しください。現在のアプリは保持されています。"
         }
+        #endif
     }
 }
 
