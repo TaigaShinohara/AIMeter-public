@@ -157,6 +157,45 @@ final class StoreSafeFileTreeTests: XCTestCase {
         XCTAssertEqual(opened, [["keep.json"]])
     }
 
+    func testExhaustedByteBudgetRejectsBeforeVisitingFile() throws {
+        try Data("12345".utf8).write(to: selected.appendingPathComponent("value"))
+        let fd = Darwin.open(selected.path, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+        XCTAssertGreaterThanOrEqual(fd, 0)
+        guard fd >= 0 else { return }
+        defer { Darwin.close(fd) }
+        var limits = StoreSafeFileTree.Limits()
+        limits.totalBytes = 4
+        var visited = false
+        XCTAssertThrowsError(try StoreSafeFileTree.read(rootDirectoryFD: fd, limits: limits,
+                                                       includeFile: { _, _ in true },
+                                                       descendDirectory: { _, _ in true },
+                                                       visitFile: { _, _, _ in visited = true })) {
+            XCTAssertEqual($0 as? StoreSafeFileTree.Failure, .limit)
+        }
+        XCTAssertFalse(visited)
+    }
+
+    func testModificationDuringReadRejectsResult() throws {
+        let file = selected.appendingPathComponent("value")
+        try Data("before".utf8).write(to: file)
+        let fd = Darwin.open(selected.path, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+        XCTAssertGreaterThanOrEqual(fd, 0)
+        guard fd >= 0 else { return }
+        defer { Darwin.close(fd) }
+        XCTAssertThrowsError(try StoreSafeFileTree.read(rootDirectoryFD: fd,
+                                                       includeFile: { _, _ in true },
+                                                       descendDirectory: { _, _ in true },
+                                                       visitFile: { _, _, next in
+            let handle = try FileHandle(forWritingTo: file)
+            try handle.seekToEnd()
+            try handle.write(contentsOf: Data("changed".utf8))
+            try handle.close()
+            while try !next().isEmpty {}
+        })) {
+            XCTAssertEqual($0 as? StoreSafeFileTree.Failure, .invalidEntry)
+        }
+    }
+
     func testFileSelectionChangingAfterInspectionFailsInsteadOfSkipping() throws {
         let file = selected.appendingPathComponent("value")
         try Data("inside".utf8).write(to: file)

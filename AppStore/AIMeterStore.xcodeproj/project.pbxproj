@@ -33,6 +33,7 @@
 		854408D0E7E00060A8CA5991 /* WindsurfDatabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9AE4EC0E02B2D2FE99CB7092 /* WindsurfDatabase.swift */; };
 		86803A8A07CB88F57500D9EB /* RefreshSequence.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD421E10DC1EC6DD927715A9 /* RefreshSequence.swift */; };
 		86942AFA1AC2986B69F53DAE /* ProviderPathPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60201A65D2B4C6CA5B7797E1 /* ProviderPathPreferences.swift */; };
+		8C3648468AE59D492F7FB22B /* StoreClaudeCollector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 734E846146037FBFD44AA072 /* StoreClaudeCollector.swift */; };
 		9109578BBCB30E5427D4F640 /* LocalQuotaTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08FADC08C8F72CABEF8A73D6 /* LocalQuotaTransport.swift */; };
 		9B50190970676BA38501D570 /* AppIcon.icns in Resources */ = {isa = PBXBuildFile; fileRef = 01572137FEB0D162DB68F155 /* AppIcon.icns */; };
 		9DF77C2780BD323B15E2B251 /* CollectionIntroduction.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53C12E4C9C02BEE1FDE18ACB /* CollectionIntroduction.swift */; };
@@ -42,6 +43,7 @@
 		AB1DCB76AAA064D4020F4203 /* LiquidBallArtwork.swift in Sources */ = {isa = PBXBuildFile; fileRef = F02B2C69AFDA7E20F0A3C53A /* LiquidBallArtwork.swift */; };
 		B123BF27AB7F1F2BF059A253 /* AIMeterStoreWidget.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = 67FFCFF57151AF5F89D0ADD7 /* AIMeterStoreWidget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		B7E9544522AF4C1F2460817D /* AIMeterCore in Frameworks */ = {isa = PBXBuildFile; productRef = C56C6B422C113A24E7257387 /* AIMeterCore */; };
+		B81652FE5203C392697524A3 /* StoreCopilotCollector.swift in Sources */ = {isa = PBXBuildFile; fileRef = E88576457073D553EB7AE629 /* StoreCopilotCollector.swift */; };
 		B83CF2635A80627246FEFB4B /* SetupWizardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7C8B42F9A889F69676C1A95 /* SetupWizardView.swift */; };
 		B9CC4DE0AEFDDB330AD3C2BC /* AntigravityPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA2B87847111CDE88FD8CCE6 /* AntigravityPresentation.swift */; };
 		BA9B817F82D095CCE7AC490B /* GcloudEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8F7A963D6393BC509EBD96E /* GcloudEnvironment.swift */; };
@@ -103,6 +105,7 @@
 		67FFCFF57151AF5F89D0ADD7 /* AIMeterStoreWidget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = AIMeterStoreWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		69F28C3D4E4263D7061A9FB8 /* StoreBuildGuard.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StoreBuildGuard.swift; sourceTree = "<group>"; };
 		6FE699011582263FCF61CCB0 /* AIMeterWidget.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AIMeterWidget.swift; sourceTree = "<group>"; };
+		734E846146037FBFD44AA072 /* StoreClaudeCollector.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StoreClaudeCollector.swift; sourceTree = "<group>"; };
 		7F6047F39F97AD344F889A4B /* LocalSocketIdentity.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LocalSocketIdentity.swift; sourceTree = "<group>"; };
 		83916F76D2C6C3E034DAAA1D /* StoreSafeFileTree.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StoreSafeFileTree.swift; sourceTree = "<group>"; };
 		8E5ACA942C7FE80E2FB851F8 /* IntegrationPermit.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = IntegrationPermit.swift; sourceTree = "<group>"; };
@@ -125,6 +128,7 @@
 		DEEB77F99E9CB397042922A7 /* IntegrationSettingsObservation.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = IntegrationSettingsObservation.swift; sourceTree = "<group>"; };
 		E35CB1DDF9B1568722E1E293 /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = System/Library/Frameworks/Cocoa.framework; sourceTree = SDKROOT; };
 		E423863279622C818FD50814 /* KeychainHelper.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = KeychainHelper.swift; sourceTree = "<group>"; };
+		E88576457073D553EB7AE629 /* StoreCopilotCollector.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StoreCopilotCollector.swift; sourceTree = "<group>"; };
 		E8F7A963D6393BC509EBD96E /* GcloudEnvironment.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GcloudEnvironment.swift; sourceTree = "<group>"; };
 		EBB7E932D5C600567166E6B5 /* StoreSourcePickerView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StoreSourcePickerView.swift; sourceTree = "<group>"; };
 		F02B2C69AFDA7E20F0A3C53A /* LiquidBallArtwork.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LiquidBallArtwork.swift; sourceTree = "<group>"; };
@@ -203,6 +207,8 @@
 				83916F76D2C6C3E034DAAA1D /* StoreSafeFileTree.swift */,
 				452F66FE029C7C12DB669099 /* StoreScopedDirectory.swift */,
 				FB76B7DF16C8ADE4F27BA768 /* StoreGeminiCollector.swift */,
+				734E846146037FBFD44AA072 /* StoreClaudeCollector.swift */,
+				E88576457073D553EB7AE629 /* StoreCopilotCollector.swift */,
 			);
 			name = AIMeter;
 			path = AIMeter;
@@ -420,6 +426,8 @@
 				36549F5D533335DC8167A420 /* StoreSafeFileTree.swift in Sources */,
 				65F7116DE4303E76D8EEFDC3 /* StoreScopedDirectory.swift in Sources */,
 				70175EF2AB547E06564DD0F5 /* StoreGeminiCollector.swift in Sources */,
+				8C3648468AE59D492F7FB22B /* StoreClaudeCollector.swift in Sources */,
+				B81652FE5203C392697524A3 /* StoreCopilotCollector.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
