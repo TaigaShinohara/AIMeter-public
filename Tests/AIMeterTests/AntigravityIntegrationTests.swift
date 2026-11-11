@@ -3,6 +3,19 @@ import AIMeterCore
 @testable import AIMeter
 
 final class AntigravityIntegrationTests: XCTestCase {
+    #if AIMETER_APP_STORE
+    func testStoreDoesNotAttemptAntigravityDiscovery() async {
+        do {
+            _ = try await AntigravityQuotaClient.fetch()
+            XCTFail("Store builds must not attempt unverified discovery")
+        } catch let failure as AntigravityQuotaClient.Failure {
+            XCTAssertEqual(failure, .unsupportedInStore)
+        } catch {
+            XCTFail("Unexpected failure: \(error)")
+        }
+    }
+    #endif
+
     func testOptInLiveReadOnlyQuotaFetch() async throws {
         guard ProcessInfo.processInfo.environment["AIMETER_VERIFY_ANTIGRAVITY"] == "1" else {
             throw XCTSkip("Live read requires an explicitly enabled local verification run")

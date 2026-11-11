@@ -1,5 +1,9 @@
 import Foundation
 
+/// Prevents the direct-distribution collector from being used by the Store app
+/// before the scoped Store collection pipeline is connected and verified.
+enum StoreCollectionUnavailable: Error { case notConnected }
+
 /// In-memory Store collection state. All mutations and result acceptance are
 /// serialized by the actor. This does not serialize external reads or writes:
 /// callers must cancel reads on revocation and separately gate persistence and

@@ -495,11 +495,19 @@ private struct ServicesSettingsView: View {
             }
 
             SettingsSection("保存済みキーの保守") {
+                #if AIMETER_APP_STORE
+                Text("連携をオフにしたまま、このアプリに保存したキーを削除できます。旧版のキーは引き継ぎません。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                #else
                 Text("連携をオフにしたまま操作できます。旧設定を安全に移行するか、この端末の保存済みキーを削除します。これらの操作でAPI照会は開始しません。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                #endif
                 HStack {
+                    #if !AIMETER_APP_STORE
                     Button("旧設定を移行") { monitor.migrateLegacyOpenAICredential() }
+                    #endif
                     Button("この端末の保存済みキーを削除", role: .destructive) {
                         confirmStoredKeyDeletion = true
                     }
@@ -541,6 +549,12 @@ private struct ServicesSettingsView: View {
                 logPathEditor(for: "gemini")
             }
 
+            #if AIMETER_APP_STORE
+            SettingsSection("GCPプロジェクト連携") {
+                Text("Mac App Store版ではCloud Monitoringとの連携に対応していません。")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            #else
             SettingsSection("GCPプロジェクト連携 (任意)") {
                 SettingsLabeledContent("GCP Project ID") {
                     TextField("GCP Project ID", text: $monitor.gcpProjectId)
@@ -550,6 +564,7 @@ private struct ServicesSettingsView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+            #endif
         }
     }
 
@@ -561,6 +576,10 @@ private struct ServicesSettingsView: View {
                     .disabled(!monitor.showAntigravitySection)
             }
             SettingsSection("Antigravityの残量") {
+                #if AIMETER_APP_STORE
+                Text("Mac App Store版ではAntigravityの残量取得に対応していません。")
+                    .font(.caption).foregroundStyle(.secondary)
+                #else
                 Text("Antigravityを起動してログインした状態で更新してください。AIMeterへの追加ログインは不要です。取得できたモデル群ごとの残り％とリセット予定を表示します。")
                     .font(.caption).foregroundStyle(.secondary)
                 Text("Geminiのローカル推定使用量とは別の情報です。Antigravityの残りトークン数は推計しません。アプリの終了や更新失敗時は未取得になります。")
@@ -568,6 +587,7 @@ private struct ServicesSettingsView: View {
                 Text(monitor.antigravityStatus).font(.caption)
                 Button("今すぐ更新") { Task { await monitor.refresh() } }
                     .disabled(monitor.isRefreshing || !monitor.showAntigravitySection)
+                #endif
             }
         }
     }
@@ -902,7 +922,7 @@ private struct HelpSettingsView: View {
                         .foregroundStyle(.green)
 
                     #if AIMETER_APP_STORE
-                    Text("ローカルログはMac内で集計します。任意の連携を有効にした場合のみ、各サービスに応じた通信を行います。アプリのアップデートはMac App Storeから行います。")
+                    Text("ローカルログの読み取りは準備中です。任意のOpenAI連携を有効にすると、利用量と費用を照会します。GCPとAntigravityの残量連携には対応していません。アップデートはMac App Storeから行います。")
                         .font(.body)
                         .foregroundStyle(.secondary)
                     #else
