@@ -7,7 +7,7 @@ import AIMeterCore
 /// stay in memory and are sent only to listeners owned by its verified process.
 enum AntigravityQuotaClient {
     enum Failure: LocalizedError, Equatable {
-        case notRunning, untrustedProcess, missingToken, unavailable, connection, invalidResponse, limit
+        case notRunning, untrustedProcess, missingToken, unavailable, connection, invalidResponse, limit, unsupportedInStore
 
         var errorDescription: String? {
             switch self {
@@ -18,6 +18,7 @@ enum AntigravityQuotaClient {
             case .connection: return "Antigravityとのローカル接続に失敗しました"
             case .invalidResponse: return "Antigravityの残量データを読み取れませんでした"
             case .limit: return "Antigravityの残量取得が処理上限に達しました"
+            case .unsupportedInStore: return "Mac App Store版ではAntigravityの残量取得に対応していません"
             }
         }
     }
@@ -44,6 +45,9 @@ enum AntigravityQuotaClient {
     }
 
     static func fetch() async throws -> AntigravityQuotaSnapshot {
+        #if AIMETER_APP_STORE
+        throw Failure.unsupportedInStore
+        #else
         let started = ProcessInfo.processInfo.systemUptime
         let discovery = Task.detached(priority: .utility) { try discoverServers() }
         let servers = try await withTaskCancellationHandler {
@@ -83,6 +87,7 @@ enum AntigravityQuotaClient {
             }
         }
         throw lastFailure
+        #endif
     }
 
     private static func request(method: String, endpoint: Endpoint) async throws -> Data {

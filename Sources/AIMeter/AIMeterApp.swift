@@ -64,7 +64,11 @@ final class UsageMonitor: ObservableObject {
     // boundary; constructing the monitor must not eagerly materialize it.
     private let credentialDefaults: UserDefaults
     var legacyOpenaiAdminKey: String {
+        #if AIMETER_APP_STORE
+        return ""
+        #else
         credentialDefaults.object(forKey: "openaiAdminKey") as? String ?? ""
+        #endif
     }
     @Published private(set) var openAICredential: OpenAICredentialState
     @Published var openaiCredentialMaintenanceStatus: CredentialMaintenance.Status = .unverified
@@ -206,7 +210,11 @@ final class UsageMonitor: ObservableObject {
     @Published var geminiCostUSD: Double = 0.0
     @Published var geminiStatus: String = "実ログ"
     @Published var antigravityQuota: AntigravityQuotaSnapshot?
+    #if AIMETER_APP_STORE
+    @Published var antigravityStatus: String = "Mac App Store版ではAntigravityの残量取得に対応していません"
+    #else
     @Published var antigravityStatus: String = "Antigravityを起動してログイン後、更新してください"
+    #endif
 
     @Published var lastUpdated: Date?
     @Published var isRefreshing: Bool = false
@@ -719,7 +727,11 @@ final class UsageMonitor: ObservableObject {
             await refreshConfiguredAPIs()
         })
         if let error, !(error is CancellationError) {
+            #if AIMETER_APP_STORE
+            collectionError = "ローカルログの読み取りは準備中です。"
+            #else
             collectionError = "利用状況を更新できませんでした。設定とログの場所を確認して再試行してください"
+            #endif
         }
     }
 
@@ -1041,6 +1053,11 @@ final class UsageMonitor: ObservableObject {
             }
         } else { stopOpenAIIntegration() }
         guard !Task.isCancelled else { return }
+        #if AIMETER_APP_STORE
+        // gcloud execution and its authentication are not verified in Sandbox.
+        // Do not attempt them until a Store-specific integration is validated.
+        stopGeminiIntegration()
+        #else
         if geminiIntegrationEnabled {
             let project = (credentialDefaults.object(forKey: "gcpProjectId") as? String ?? "")
                 .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1056,6 +1073,7 @@ final class UsageMonitor: ObservableObject {
                 if geminiPermit === permit { stopGeminiIntegration() }
             }
         } else { stopGeminiIntegration() }
+        #endif
     }
 
     static func localIDs(in subscriptions: [CustomSubscriptionConfig]) -> Set<String> {
@@ -1078,6 +1096,11 @@ final class UsageMonitor: ObservableObject {
     }
 
     private func runLocalCollectorScript() async throws -> LocalUsageData {
+        #if AIMETER_APP_STORE
+        // The direct collector reads home-directory paths without user grants.
+        // Store collectors must be wired through validated scoped access first.
+        throw StoreCollectionUnavailable.notConnected
+        #else
         let generation = UUID()
         localCollectionGeneration = generation
         let ids = enabledLocalProviderIDs
@@ -1106,6 +1129,7 @@ final class UsageMonitor: ObservableObject {
         }
         try permit.check()
         return result
+        #endif
     }
 
     func loadLocalJSON(from customURL: URL? = nil) -> LocalUsageData? {
