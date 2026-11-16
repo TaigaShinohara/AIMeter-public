@@ -6,6 +6,6 @@
 
 権限ファイルにはsandbox、ユーザー選択の読取、ブックマーク、通信、App Groupの候補を記載しています。App Groupや識別子は未設定で、署名・プロビジョニングでの成立は未検証です。従来版とのKeychain、Widget、共有ファイル、更新処理の分離基盤はありますが、入力選択・安全な収集処理への接続が完成していません。これらをストア版で分離・検証する前にガードを除去しないでください。
 
-本体とWidgetのビルド条件には `AIMETER_APP_STORE` を指定していますが、ローカルSwift Packageの `AIMeterCore` に同じ条件が伝播するかは未検証です。本体とWidgetはそれぞれ起動時にStoreの配布設定を必須として検証します。URL schemeは本体Info.plistに登録しますが、実アプリでの起動先は未検証です。フラグの適用、展開後の両Info.plistとentitlementの一致、URL登録と実バイナリの検証を用意するまで、ガードを外せません。
+本体とWidgetのビルド条件には `AIMETER_APP_STORE` を指定しています。ローカルSwift Packageの `AIMeterCore` へはXcodeのビルド設定が伝播しないため、`Package.swift` がマニフェスト評価時の環境変数 `AIMETER_APP_STORE=1` を検出した場合に限り、同じ define を `AIMeterCore` へ追加します（直接配布ビルドでは未設定のため挙動は変わりません）。実際のXcodeビルドでこの経路が意図どおり働くかは未検証です。本体とWidgetはそれぞれ起動時にStoreの配布設定を必須として検証します。URL schemeは本体Info.plistに登録しますが、実アプリでの起動先は未検証です。フラグの適用、展開後の両Info.plistとentitlementの一致、URL登録と実バイナリの検証を用意するまで、ガードを外せません。
 
 App Store向けの署名、アーカイブ、実環境のWidgetKit、各連携の互換性、Appleの審査適合性は未検証です。登録・審査提出・公開はこの骨格の作成には含みません。
