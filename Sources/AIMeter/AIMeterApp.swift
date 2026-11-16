@@ -319,7 +319,7 @@ final class UsageMonitor: ObservableObject {
 
     func beginCollection() {
         guard requiresCollectionIntroduction else { return }
-        credentialDefaults.set(true, forKey: CollectionIntroduction.acknowledgmentPreference)
+        CollectionIntroduction.markOnboardingCompleted(in: credentialDefaults)
         requiresCollectionIntroduction = false
         if automaticallyPublishSnapshots { startAutomaticMonitoring() }
     }
@@ -1943,11 +1943,7 @@ struct AIMeterCardView: View {
             }
 
             if monitor.requiresCollectionIntroduction {
-                ScrollView {
-                    CollectionIntroductionView(monitor: monitor)
-                        .padding(.trailing, 2)
-                }
-                .frame(height: 560)
+                CollectionIntroductionView(monitor: monitor)
             } else {
                 TimelineView(.periodic(from: .now, by: 60)) { _ in
                     // A monitor refresh may be newer than the last timeline tick.

@@ -17,6 +17,8 @@
 | `SettingsLabeledContent` | 設定のラベルと値・コントロールを標準配置する | `Sources/AIMeter/SettingsStyle.swift` | 使用中 |
 | `SettingsToggle` | 折り返し対応の設定用トグル行 | `Sources/AIMeter/SettingsStyle.swift` | 使用中 |
 | `StoreSourcePickerView` | Mac App Store版での安全なフォルダ選択UI | `Sources/AIMeter/StoreSourcePickerView.swift` | 使用中 |
+| `CollectionIntroductionView` | 初回起動時の1ページ1主張オンボーディングと収集同意 | `Sources/AIMeter/CollectionIntroduction.swift` | 使用中 |
+| `OnboardingWindowDotsView` | 総ページ数を意識させない最大5点の窓ドット進捗表示 | `Sources/AIMeter/CollectionIntroduction.swift` | 使用中 |
 | `WidgetContent` / `WidgetSurface` | 小・中・大ウィジェットの共通表示面 | `Sources/AIMeterWidgetUI/WidgetViews.swift` | 使用中 |
 
 ## パーツ詳細
@@ -70,6 +72,16 @@
 - 狙い：152pt固定幅などの独自レイアウトを排し、OS標準の落ち着いた設定体験を提供する。
 - アート方針との対応：macOS 標準UI、余白と面による整理。
 - 実装の場所：`Sources/AIMeter/SettingsStyle.swift`
+
+### `CollectionIntroductionView` / `OnboardingWindowDotsView`
+
+- 役割：初回起動時（`requiresCollectionIntroduction`）に、1ページ1主張のオンボーディング（全14ページ：フック・悩み選択・マッチ宣言・アイデンティティ・価値3頁・3ステップ・表示モード試し操作と結果・期待・接続）と窓ドット進捗を表示し、明示的な開始操作までログ読み取りを行わない境界を守る。
+- 使う場面：`AIMeterCardView`（デスクトップ・メニューバー）および初回設定ウィンドウ。
+- 使わない場面：収集開始後の通常画面、Widget。
+- 状態：通常（2層アニメーション）／ 視差効果低減（静止・フェード代替）／ 称賛バナー表示（小・中・大）／ 戻る・スキップ（中立遷移）
+- 狙い：開いて3秒で把握できる1ページ1主張の密度で、何のアプリか・3ステップの使い方・安心な端末内集計を伝え、選んだ悩みや試し操作を初期表示設定へ反映する。
+- アート方針との対応：`controlBackgroundColor` の標準カード面、等幅数字、35%未満のみ警告色（通常は中立色）、`LiquidBallArtwork` の活用、視差効果低減・高コントラスト対応。
+- 実装の場所：`Sources/AIMeter/CollectionIntroduction.swift`
 
 ### `WidgetContent` / `WidgetSurface`
 
