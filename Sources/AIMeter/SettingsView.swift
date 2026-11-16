@@ -922,7 +922,7 @@ private struct HelpSettingsView: View {
                         .foregroundStyle(.green)
 
                     #if AIMETER_APP_STORE
-                    Text("ローカルログの読み取りは準備中です。任意のOpenAI連携を有効にすると、利用量と費用を照会します。GCPとAntigravityの残量連携には対応していません。アップデートはMac App Storeから行います。")
+                    Text("ローカルログは、サービスごとに許可した場所だけを読み取り、このMacの中で集計します。許可していないサービスは未取得として表示します。任意のOpenAI連携を有効にすると、利用量と費用を照会します。GCPとAntigravityの残量連携には対応していません。アップデートはMac App Storeから行います。")
                         .font(.body)
                         .foregroundStyle(.secondary)
                     #else
