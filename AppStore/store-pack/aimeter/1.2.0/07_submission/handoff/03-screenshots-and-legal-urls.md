@@ -18,8 +18,8 @@
 4. `03_legal/privacy-policy.md` の内容を公開場所（例：GitHubリポジトリの `docs/PRIVACY.md` 更新版、または専用公開ページ）へ反映し、その公開URLを `00_manifest.yaml` の `privacy_policy_url` に記入する。
 5. 以下の検証コマンドを実行する（サイズ例が 2560x1600 の場合）：
    ```sh
-   PYTHONDONTWRITEBYTECODE=1 python3 /Users/taiga/.gemini/config/skills/store_listing_pack/scripts/validate_pack.py \
-     /Volumes/SSD-1TB/Projects/Apps/AIMeter-public/AppStore/store-pack/aimeter/1.2.0 \
+   PYTHONDONTWRITEBYTECODE=1 python3 <store_listing_pack スキル>/scripts/validate_pack.py \
+     <リポジトリ>/AppStore/store-pack/aimeter/1.2.0 \
      --expect apple=macos:2560x1600
    ```
 
