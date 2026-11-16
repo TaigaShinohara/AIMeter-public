@@ -1,5 +1,19 @@
 // swift-tools-version: 5.9
 import PackageDescription
+import Foundation
+
+// The Mac App Store project (AppStore/AIMeterStore.xcodeproj) gives its own
+// targets the AIMETER_APP_STORE compilation condition through Store.xcconfig,
+// but Xcode does not propagate that build setting into this local package.
+// Store builds therefore export AIMETER_APP_STORE=1 in the environment while
+// this manifest is evaluated (for example,
+// `AIMETER_APP_STORE=1 xcodebuild -project AppStore/AIMeterStore.xcodeproj ...`),
+// which adds the matching define to AIMeterCore below so that
+// DistributionConfiguration resolves in App Store mode. Direct (GitHub)
+// builds never set the variable, so their behavior is unchanged.
+let appStoreCoreSwiftSettings: [SwiftSetting] = ProcessInfo.processInfo.environment["AIMETER_APP_STORE"] == "1"
+    ? [.define("AIMETER_APP_STORE")]
+    : []
 
 let package = Package(
     name: "AIMeter",
@@ -16,7 +30,8 @@ let package = Package(
     targets: [
         .target(
             name: "AIMeterCore",
-            path: "Sources/AIMeterCore"
+            path: "Sources/AIMeterCore",
+            swiftSettings: appStoreCoreSwiftSettings
         ),
         .target(
             name: "AIMeterWidgetUI",
