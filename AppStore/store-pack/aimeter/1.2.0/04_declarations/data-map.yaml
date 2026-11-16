@@ -1,0 +1,34 @@
+# データ棚卸し（Mac App Store版）
+# 種類 / 目的 / 第三者共有 / 保存期間 / 削除手段（SDK分を含む）
+
+third_party_sdks: [] # Package.swift 確認済み：外部Swiftパッケージ依存なし
+
+collected_by_developer_or_app_server: [] # 開発者サーバーへの送信・収集は一切なし
+
+on_device_only_processing:
+  - data_type: "AIツールのローカルログ（JSONL / JSON / SQLite等）"
+    source: "ユーザーがNSOpenPanelで明示的に選択・許可したフォルダ/ファイル"
+    purpose: "端末内での利用量・残量目安の集計表示"
+    shared_with_third_parties: false
+    stored_content: "集計数値・更新時刻のみをApp Sandbox/App Group領域に保存（会話本文は保存しない）"
+    retention: "ユーザーがアプリを削除またはサービスを解除するまで端末内に保持"
+    deletion: "設定画面からの許可解除、またはアプリのアンインストール"
+
+  - data_type: "OpenAI Admin Key（任意連携時のみ）"
+    source: "ユーザーが設定画面で任意入力"
+    purpose: "ユーザー自身のOpenAI公式API（api.openai.com）への利用量照会認証"
+    shared_with_third_parties: false
+    stored_content: "Store版専用のmacOS Keychainサービス識別子へ保存"
+    retention: "ユーザーが削除するまで保持"
+    deletion: "設定 → サービス連携 → 保存済みキーを削除"
+
+  - data_type: "アプリ設定（表示設定、制限値、security-scoped bookmark）"
+    source: "ユーザーの操作"
+    purpose: "アプリおよびWidgetの表示制御・再起動後の再アクセス"
+    shared_with_third_parties: false
+    stored_content: "App Sandbox / App Group コンテナ内"
+    retention: "アンインストールまで"
+    deletion: "設定リセットまたはアンインストール"
+
+shared: []
+tracking: false
