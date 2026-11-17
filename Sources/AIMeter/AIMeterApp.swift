@@ -263,6 +263,12 @@ final class UsageMonitor: ObservableObject {
     /// presentation never carries data for the confirmed display; it is
     /// published so views can explain the state.
     @Published private(set) var storeClaudePresentation: StoreClaudePipeline.Presentation?
+    private let storeCopilotPipeline: StoreCopilotPipeline
+    /// The latest Copilot pipeline outcome in display terms. Copilot
+    /// values are reference-classified in this slice, so the
+    /// presentation never carries data for the confirmed display; it is
+    /// published so views can explain the state.
+    @Published private(set) var storeCopilotPresentation: StoreCopilotPipeline.Presentation?
     #endif
 
     init(defaults: UserDefaults = .standard, startMonitoring: Bool = true,
@@ -327,6 +333,7 @@ final class UsageMonitor: ObservableObject {
         self.storeBookmarks = storeBookmarks
         self.storeCodexPipeline = StoreCodexPipeline(bookmarks: storeBookmarks)
         self.storeClaudePipeline = StoreClaudePipeline(bookmarks: storeBookmarks)
+        self.storeCopilotPipeline = StoreCopilotPipeline(bookmarks: storeBookmarks)
         #endif
         self.integrationSettingsObservation = IntegrationSettingsObservation(
             defaults: defaults, openAI: openAIPermitSlot, gemini: geminiPermitSlot,
@@ -1141,9 +1148,10 @@ final class UsageMonitor: ObservableObject {
         // grants, so Store builds collect through the verified scoped
         // pipelines instead (docs/STORE_CONNECTION_DESIGN.md, stages 4
         // and 6). Codex is the only service whose runs can produce
-        // displayable usage data; the Claude pipeline publishes its
-        // presentation only, because its values are reference-classified
-        // in this slice and never enter the confirmed display. Every
+        // displayable usage data; the Claude and Copilot pipelines
+        // publish their presentations only, because their values are
+        // reference-classified in these slices and never enter the
+        // confirmed display. Every
         // other service stays unconnected in Store builds. A run that
         // produced no displayable usage keeps the current display instead
         // of applying an empty snapshot, so an unselected, unverifiable,
@@ -1157,6 +1165,9 @@ final class UsageMonitor: ObservableObject {
         }
         if storeIDs.contains(StoreClaudePipeline.serviceID) {
             storeClaudePresentation = try await storeClaudePipeline.collect()
+        }
+        if storeIDs.contains(StoreCopilotPipeline.serviceID) {
+            storeCopilotPresentation = try await storeCopilotPipeline.collect()
         }
         if let storeData { return storeData }
         throw StoreCollectionUnavailable.notConnected

@@ -649,6 +649,21 @@ private struct ServicesSettingsView: View {
                         }
                     )
                 }
+            } else if currentSub.id == StoreCopilotPipeline.serviceID,
+                      let copilotService = StoreSourceCatalog.service(id: StoreCopilotPipeline.serviceID) {
+                // The Copilot slice connects the service's only source,
+                // copilot.sessions, so the whole catalog entry is
+                // offered as-is.
+                SettingsSection("読み取り先") {
+                    StoreSourcePickerView(
+                        service: copilotService,
+                        bookmarks: monitor.storeBookmarks,
+                        onDefer: { _ in },
+                        performChange: { sourceID, operation in
+                            try await monitor.performStoreSelectionChange(sourceID: sourceID, operation: operation)
+                        }
+                    )
+                }
             } else {
                 SettingsSection("ローカルログパス") {
                     logPathEditor(for: currentSub.id)

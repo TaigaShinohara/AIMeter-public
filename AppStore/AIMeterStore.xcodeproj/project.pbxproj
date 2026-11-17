@@ -27,6 +27,7 @@
 		623395467B51701674B58EB6 /* OpenAICredentialState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F41E39CD087305C466A037D /* OpenAICredentialState.swift */; };
 		6364EAEC8989DE0A0107EB79 /* StoreCodexPipeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = F188F109109E3CF8ABC6ABA1 /* StoreCodexPipeline.swift */; };
 		74E8AE216AAD034DF3A128FB /* StoreClaudePipeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD72439C85C5D90C1E0DC806 /* StoreClaudePipeline.swift */; };
+		B39EBA2F47B1CC2FD3A0ACA6 /* StoreCopilotPipeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05C1838911D876075D70C955 /* StoreCopilotPipeline.swift */; };
 		65F7116DE4303E76D8EEFDC3 /* StoreScopedDirectory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452F66FE029C7C12DB669099 /* StoreScopedDirectory.swift */; };
 		677864276779E53DF64A5261 /* AntigravityQuotaClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6572CF399803324E68B6394 /* AntigravityQuotaClient.swift */; };
 		6CE2F22E953313EABE3FB8EB /* AppUpdater.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0E45B5F70990D4FE1569CF5 /* AppUpdater.swift */; };
@@ -149,6 +150,7 @@
 		F02B2C69AFDA7E20F0A3C53A /* LiquidBallArtwork.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LiquidBallArtwork.swift; sourceTree = "<group>"; };
 		F188F109109E3CF8ABC6ABA1 /* StoreCodexPipeline.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StoreCodexPipeline.swift; sourceTree = "<group>"; };
 		BD72439C85C5D90C1E0DC806 /* StoreClaudePipeline.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StoreClaudePipeline.swift; sourceTree = "<group>"; };
+		05C1838911D876075D70C955 /* StoreCopilotPipeline.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StoreCopilotPipeline.swift; sourceTree = "<group>"; };
 		F25B1DEC9969D3AADA64F6DF /* App-Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = "App-Info.plist"; sourceTree = "<group>"; };
 		F3392C67F51872C620FC6B6C /* StoreBookmarkStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StoreBookmarkStore.swift; sourceTree = "<group>"; };
 		F6D52C261B9448ABD052B216 /* LICENSE */ = {isa = PBXFileReference; includeInIndex = 1; name = LICENSE; path = ../LICENSE; sourceTree = "<group>"; };
@@ -232,6 +234,7 @@
 				497A7F873623D4F29558DD79 /* StoreDisplayState.swift */,
 				F188F109109E3CF8ABC6ABA1 /* StoreCodexPipeline.swift */,
 				BD72439C85C5D90C1E0DC806 /* StoreClaudePipeline.swift */,
+				05C1838911D876075D70C955 /* StoreCopilotPipeline.swift */,
 			);
 			name = AIMeter;
 			path = AIMeter;
@@ -462,6 +465,7 @@
 				428D563BF1B0157872A2907E /* StoreDisplayState.swift in Sources */,
 				6364EAEC8989DE0A0107EB79 /* StoreCodexPipeline.swift in Sources */,
 				74E8AE216AAD034DF3A128FB /* StoreClaudePipeline.swift in Sources */,
+				B39EBA2F47B1CC2FD3A0ACA6 /* StoreCopilotPipeline.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
