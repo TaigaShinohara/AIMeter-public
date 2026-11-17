@@ -1,14 +1,6 @@
 import Darwin
 import Foundation
 
-/// Result buffer for the `fgetattrlist` call in
-/// `StoreSelectionIdentity.descriptorFileID(_:)`: a total length followed by
-/// the single `UInt64` file identifier.
-private struct DescriptorFileIDBuffer {
-    var length: UInt32 = 0
-    var fileID: UInt64 = 0
-}
-
 /// Identity of a user-selected target, recorded at selection time alongside
 /// its security-scoped bookmark. Stage 1 of the Store connection plan
 /// (docs/STORE_CONNECTION_DESIGN.md) records this and reads it back; stage 2
@@ -95,12 +87,22 @@ struct StoreSelectionIdentity: Codable, Equatable {
         // ATTR_BIT_MAP_COUNT: the count of UInt16-sized fields in attrlist.
         attributes.bitmapcount = 5
         attributes.commonattr = attrgroup_t(ATTR_CMN_FILEID)
-        var buffer = DescriptorFileIDBuffer()
-        let status = withUnsafeMutableBytes(of: &buffer) { bytes in
+        // The returned data is a length word followed by the attribute
+        // values packed immediately after it, without alignment padding, so
+        // the file ID must be copied out of a byte buffer: reading it
+        // through a struct would place it after padding and yield the
+        // value's upper half instead.
+        var buffer = [UInt8](repeating: 0,
+                             count: MemoryLayout<UInt32>.size + MemoryLayout<UInt64>.size)
+        let status = buffer.withUnsafeMutableBytes { bytes in
             Darwin.fgetattrlist(fd, &attributes, bytes.baseAddress, bytes.count, 0)
         }
         guard status == 0 else { return nil }
-        return buffer.fileID
+        return buffer.withUnsafeBytes { bytes in
+            guard bytes.loadUnaligned(fromByteOffset: 0, as: UInt32.self) >= UInt32(buffer.count)
+            else { return nil }
+            return bytes.loadUnaligned(fromByteOffset: MemoryLayout<UInt32>.size, as: UInt64.self)
+        }
     }
 
     /// Normalizes the opaque identifier objects Foundation returns into
