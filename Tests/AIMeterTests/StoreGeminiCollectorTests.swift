@@ -143,4 +143,51 @@ final class StoreGeminiCollectorTests: XCTestCase {
         limits.tree.files = 1 // Both selected files must share this budget.
         XCTAssertThrowsError(try collect(limits: limits))
     }
+
+    // MARK: - Separated per-input totals (stage 6, Gemini slice)
+
+    func testSeparatedTotalsKeepBrainAndChatsApart() throws {
+        let brainRow = "{\"created_at\":\"\(timestamp)\",\"input_tokens\":1000000,\"cache_read_tokens\":500000,\"output_tokens\":250000}"
+        try write(brain.appendingPathComponent("s/transcript.jsonl"), brainRow)
+        let chat = "{\"messages\":[{\"timestamp\":\"\(timestamp)\",\"tokens\":{\"total\":1100000,\"input\":1000000,\"cached\":200000,\"output\":100000}}]}"
+        try write(chats.appendingPathComponent("a/chats/session.json"), chat)
+        let result = try collect()
+        // Brain: 1,000,000 + 250,000 + 500,000 / 10 = 1,300,000.
+        XCTAssertEqual(result.brainUsed.monthly, 1_300_000)
+        // Chats: (1,000,000 - 200,000) + 100,000 + 200,000 / 10 = 920,000.
+        XCTAssertEqual(result.chatsUsed.monthly, 920_000)
+        // The combined totals remain the element-wise sum of the two.
+        XCTAssertEqual(result.used.monthly, 2_220_000)
+        XCTAssertEqual(result.brainCost, 2.66)
+        XCTAssertEqual(result.chatsCost, 1.56)
+        XCTAssertEqual(result.cost, 4.22)
+    }
+
+    func testEstimateBrainRecordsStayOutOfChatsTotals() throws {
+        let estimate = "{\"created_at\":\"\(timestamp)\",\"content\":\"abcdefgh\"}"
+        try write(brain.appendingPathComponent("s/transcript.jsonl"), estimate)
+        let chat = "{\"messages\":[{\"timestamp\":\"\(timestamp)\",\"tokens\":{\"total\":110,\"input\":100,\"cached\":20,\"output\":10}}]}"
+        try write(chats.appendingPathComponent("a/chats/session.json"), chat)
+        let result = try collect()
+        XCTAssertTrue(result.brainUsesEstimate)
+        // The text-length estimate (8 characters / 4 = 2) lands in the
+        // brain totals only; the chats totals are untouched by it.
+        XCTAssertEqual(result.brainUsed.monthly, 2)
+        XCTAssertEqual(result.chatsUsed.monthly, 92)
+        XCTAssertEqual(result.used.monthly, 94)
+    }
+
+    func testChatsOnlyRunMatchesSeparatedChatsTotals() throws {
+        let brainRow = "{\"created_at\":\"\(timestamp)\",\"input_tokens\":1000000,\"cache_read_tokens\":500000,\"output_tokens\":250000}"
+        try write(brain.appendingPathComponent("s/transcript.jsonl"), brainRow)
+        let chat = "{\"messages\":[{\"timestamp\":\"\(timestamp)\",\"tokens\":{\"total\":110,\"input\":100,\"cached\":20,\"output\":10}}]}"
+        try write(chats.appendingPathComponent("a/chats/session.json"), chat)
+        let both = try collect()
+        let chatsOnly = try collect(brain: false)
+        XCTAssertEqual(chatsOnly.brain, .unselected)
+        // A chats-only run — what the Store pipeline performs — yields
+        // exactly the separated chats totals of a combined run.
+        XCTAssertEqual(chatsOnly.used, both.chatsUsed)
+        XCTAssertEqual(chatsOnly.cost, both.chatsCost)
+    }
 }
