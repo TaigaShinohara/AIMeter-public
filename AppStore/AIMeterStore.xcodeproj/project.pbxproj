@@ -206,8 +206,6 @@
 				D0E2E3E5BCE512C9A5872D80 /* SupportContact.swift */,
 				1D7B80740EBCCF30F669E880 /* UsageDisplayModePicker.swift */,
 				9AE4EC0E02B2D2FE99CB7092 /* WindsurfDatabase.swift */,
-				01572137FEB0D162DB68F155 /* AppIcon.icns */,
-				A1B2C3D4E5F60718293A4B5C /* PrivacyInfo.xcprivacy */,
 				FEEEBD11CB769B09CA10C6F3 /* StoreSourceState.swift */,
 				F71C0C9B7EC3CABAC3181C0E /* StoreSourceCatalog.swift */,
 				EBB7E932D5C600567166E6B5 /* StoreSourcePickerView.swift */,
@@ -249,6 +247,8 @@
 				F0C08411127A48FE93F28E42 /* Configuration */,
 				6338860570A0FA4AA83513C7 /* Sources */,
 				F6D52C261B9448ABD052B216 /* LICENSE */,
+				01572137FEB0D162DB68F155 /* AppIcon.icns */,
+				A1B2C3D4E5F60718293A4B5C /* PrivacyInfo.xcprivacy */,
 			);
 			sourceTree = "<group>";
 		};
