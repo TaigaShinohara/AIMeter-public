@@ -245,6 +245,19 @@ final class UsageMonitor: ObservableObject {
     private let localCollectionPermitSlot = IntegrationPermitSlot()
     private var localCollectionGeneration = UUID()
     private var refreshAfterPolicyChange = false
+    #if AIMETER_APP_STORE
+    /// The one bookmark store shared by the Store selection UI and the
+    /// Codex collection pipeline, so a selection made in settings is the
+    /// selection the pipeline reads.
+    let storeBookmarks: StoreBookmarkStore
+    private let storeAccessCoordinator = StoreAccessCoordinator()
+    private let storeCodexPipeline: StoreCodexPipeline
+    /// The latest Codex pipeline outcome in display terms. Store builds
+    /// publish it on every refresh, including runs that produced no
+    /// displayable usage, so views can explain the state instead of
+    /// falling back to a number.
+    @Published private(set) var storeCodexPresentation: StoreCodexPipeline.Presentation?
+    #endif
 
     init(defaults: UserDefaults = .standard, startMonitoring: Bool = true,
          requiresCollectionIntroduction: Bool? = nil,
@@ -303,6 +316,11 @@ final class UsageMonitor: ObservableObject {
         self.localCollector = localCollector
         self.automaticallyPublishSnapshots = startMonitoring
         self.openAICredential = OpenAICredentialState(operations: keychainOperations)
+        #if AIMETER_APP_STORE
+        let storeBookmarks = StoreBookmarkStore(defaults: defaults)
+        self.storeBookmarks = storeBookmarks
+        self.storeCodexPipeline = StoreCodexPipeline(bookmarks: storeBookmarks)
+        #endif
         self.integrationSettingsObservation = IntegrationSettingsObservation(
             defaults: defaults, openAI: openAIPermitSlot, gemini: geminiPermitSlot,
             local: localCollectionPermitSlot
@@ -1095,10 +1113,36 @@ final class UsageMonitor: ObservableObject {
         if isRefreshing { refreshAfterPolicyChange = true }
     }
 
+    #if AIMETER_APP_STORE
+    /// The synchronization boundary the Store selection UI requires: an
+    /// actual selection change invalidates in-flight collection before the
+    /// saved selection is replaced, then a refresh under the new selection
+    /// follows. Panel cancellation never reaches this method, so an
+    /// existing grant survives a cancelled panel.
+    func performStoreSelectionChange(sourceID: String, operation: @escaping () throws -> Void) async throws {
+        try await storeAccessCoordinator.changeSelection(operation)
+        invalidateLocalCollection()
+        if !isRefreshing, automaticallyPublishSnapshots {
+            Task { await self.refresh() }
+        }
+    }
+    #endif
+
     private func runLocalCollectorScript() async throws -> LocalUsageData {
         #if AIMETER_APP_STORE
-        // The direct collector reads home-directory paths without user grants.
-        // Store collectors must be wired through validated scoped access first.
+        // The direct collector reads home-directory paths without user
+        // grants, so Store builds collect Codex through the verified scoped
+        // pipeline instead (docs/STORE_CONNECTION_DESIGN.md, stage 4).
+        // Every other service stays unconnected in Store builds. A run that
+        // produced no displayable usage keeps the current display instead
+        // of applying an empty snapshot, so an unselected, unverifiable, or
+        // data-absent source never renders as zero.
+        guard enabledLocalProviderIDs.contains("openai") else {
+            throw StoreCollectionUnavailable.notConnected
+        }
+        let presentation = try await storeCodexPipeline.collect()
+        storeCodexPresentation = presentation
+        if let data = presentation.data { return data }
         throw StoreCollectionUnavailable.notConnected
         #else
         let generation = UUID()

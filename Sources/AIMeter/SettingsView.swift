@@ -463,9 +463,24 @@ private struct ServicesSettingsView: View {
                     .disabled(!monitor.showOpenAISection)
             }
 
+            #if AIMETER_APP_STORE
+            if let codexService = StoreSourceCatalog.service(id: "openai") {
+                SettingsSection("読み取り先") {
+                    StoreSourcePickerView(
+                        service: codexService,
+                        bookmarks: monitor.storeBookmarks,
+                        onDefer: { _ in },
+                        performChange: { sourceID, operation in
+                            try await monitor.performStoreSelectionChange(sourceID: sourceID, operation: operation)
+                        }
+                    )
+                }
+            }
+            #else
             SettingsSection("ローカルログパス") {
                 logPathEditor(for: "openai")
             }
+            #endif
 
             SettingsSection("クラウド組織連携 (任意)") {
                 LabeledContent("OpenAI Admin Key") {
