@@ -1,10 +1,20 @@
 import Darwin
 import Foundation
 
+/// Result buffer for the `fgetattrlist` call in
+/// `StoreSelectionIdentity.descriptorFileID(_:)`: a total length followed by
+/// the single `UInt64` file identifier.
+private struct DescriptorFileIDBuffer {
+    var length: UInt32 = 0
+    var fileID: UInt64 = 0
+}
+
 /// Identity of a user-selected target, recorded at selection time alongside
 /// its security-scoped bookmark. Stage 1 of the Store connection plan
-/// (docs/STORE_CONNECTION_DESIGN.md) only records this and reads it back;
-/// verifying a reopened target against the record is stage 2.
+/// (docs/STORE_CONNECTION_DESIGN.md) records this and reads it back; stage 2
+/// verifies a reopened target against the record before any collection,
+/// through `matches(_:)` for the resolved URL and `matchesDescriptor(...)`
+/// for the opened descriptor.
 ///
 /// A selection counts as identified only when the file resource identifier
 /// was obtained. Environments that cannot provide one (for example some
@@ -57,6 +67,40 @@ struct StoreSelectionIdentity: Codable, Equatable {
             device: Int64(info.st_dev),
             inode: UInt64(info.st_ino),
             kind: kind)
+    }
+
+    /// Whether a freshly captured identity names the same target as this
+    /// record. Every recorded component must match exactly; a missing capture
+    /// never matches, so a target whose identifiers cannot be re-read (for
+    /// example on a volume without file resource identifiers) fails
+    /// verification instead of passing on the strength of its path.
+    func matches(_ current: StoreSelectionIdentity?) -> Bool {
+        guard let current else { return false }
+        return current == self
+    }
+
+    /// Whether attributes read from an opened descriptor name the recorded
+    /// target: same device and inode, and the descriptor's file ID — read
+    /// with `fgetattrlist`, so it describes the opened entity itself rather
+    /// than whatever its path names now — equal to the recorded inode.
+    func matchesDescriptor(device: Int64, inode: UInt64, fileID: UInt64) -> Bool {
+        device == self.device && inode == self.inode && fileID == self.inode
+    }
+
+    /// The file ID of an already-open descriptor, read with `fgetattrlist`.
+    /// Returns nil when the descriptor's file system cannot provide one;
+    /// verification must then fail rather than fall back to the path.
+    static func descriptorFileID(_ fd: Int32) -> UInt64? {
+        var attributes = attrlist()
+        // ATTR_BIT_MAP_COUNT: the count of UInt16-sized fields in attrlist.
+        attributes.bitmapcount = 5
+        attributes.commonattr = attrgroup_t(ATTR_CMN_FILEID)
+        var buffer = DescriptorFileIDBuffer()
+        let status = withUnsafeMutableBytes(of: &buffer) { bytes in
+            Darwin.fgetattrlist(fd, &attributes, bytes.baseAddress, bytes.count, 0)
+        }
+        guard status == 0 else { return nil }
+        return buffer.fileID
     }
 
     /// Normalizes the opaque identifier objects Foundation returns into

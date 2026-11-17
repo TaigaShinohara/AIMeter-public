@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 import XCTest
 @testable import AIMeter
@@ -57,5 +58,49 @@ final class StoreSelectionIdentityTests: XCTestCase {
         let missing = FileManager.default.temporaryDirectory
             .appendingPathComponent("AIMeterIdentityTests-missing-" + UUID().uuidString, isDirectory: true)
         XCTAssertNil(StoreSelectionIdentity.capture(url: missing))
+    }
+
+    func testMatchesRequiresEveryRecordedComponent() {
+        let identity = StoreSelectionIdentity(
+            fileResourceIdentifier: Data("file".utf8), volumeIdentifier: Data("volume".utf8),
+            device: 42, inode: 1001, kind: .directory)
+        XCTAssertTrue(identity.matches(identity))
+        XCTAssertFalse(identity.matches(nil))
+        // Same device and inode (a reused inode) but a different entity.
+        XCTAssertFalse(identity.matches(StoreSelectionIdentity(
+            fileResourceIdentifier: Data("other".utf8), volumeIdentifier: Data("volume".utf8),
+            device: 42, inode: 1001, kind: .directory)))
+        XCTAssertFalse(identity.matches(StoreSelectionIdentity(
+            fileResourceIdentifier: Data("file".utf8), volumeIdentifier: Data("volume".utf8),
+            device: 42, inode: 1002, kind: .directory)))
+        XCTAssertFalse(identity.matches(StoreSelectionIdentity(
+            fileResourceIdentifier: Data("file".utf8), volumeIdentifier: Data("volume".utf8),
+            device: 42, inode: 1001, kind: .file)))
+    }
+
+    func testMatchesDescriptorComparesDeviceInodeAndFileID() {
+        let identity = StoreSelectionIdentity(
+            fileResourceIdentifier: Data("file".utf8), volumeIdentifier: nil,
+            device: 42, inode: 1001, kind: .file)
+        XCTAssertTrue(identity.matchesDescriptor(device: 42, inode: 1001, fileID: 1001))
+        XCTAssertFalse(identity.matchesDescriptor(device: 43, inode: 1001, fileID: 1001))
+        XCTAssertFalse(identity.matchesDescriptor(device: 42, inode: 1002, fileID: 1002))
+        // The descriptor's own file ID disagrees even though fstat agrees.
+        XCTAssertFalse(identity.matchesDescriptor(device: 42, inode: 1001, fileID: 1002))
+    }
+
+    func testDescriptorFileIDMatchesRecordedInode() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("AIMeterIdentityTests-" + UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let identity = try XCTUnwrap(StoreSelectionIdentity.capture(url: directory))
+        let fd = Darwin.open(directory.path, O_RDONLY | O_DIRECTORY | O_CLOEXEC)
+        XCTAssertGreaterThanOrEqual(fd, 0)
+        defer { Darwin.close(fd) }
+        XCTAssertEqual(StoreSelectionIdentity.descriptorFileID(fd), identity.inode)
+        XCTAssertTrue(identity.matchesDescriptor(device: identity.device,
+                                                 inode: identity.inode,
+                                                 fileID: try XCTUnwrap(StoreSelectionIdentity.descriptorFileID(fd))))
     }
 }
