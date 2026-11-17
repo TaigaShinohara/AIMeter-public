@@ -23,6 +23,6 @@ AI Meter（以下「本アプリ」）は、利用者が明示的に有効化し
 
 ## 4. お問い合わせ
 本アプリのプライバシーに関するお問い合わせは、以下までご連絡ください。
-- メール：`deeple+aimeterstaff@inkboxmail.com`
+- メール：`support-aimeter@dobulab.com`
 - 公開リポジトリ窓口：`https://github.com/TaigaShinohara/AIMeter-public/issues`
 ※ お問い合わせの際は、個人ログ、集計ファイル、APIキーを添付しないでください。

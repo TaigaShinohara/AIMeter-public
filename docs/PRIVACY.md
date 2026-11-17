@@ -31,7 +31,7 @@ Widgetの数値表示の切替は、共有ファイルの更新を確認して�
 
 アプリのアップデートは、設定の更新ボタンを押したときだけGitHubのRelease APIへ接続し、選んだ安定版または開発版の配布ZIPをダウンロードします。更新先は公開リポジトリ `TaigaShinohara/AIMeter-public` です。公開配布の確認・取得にGitHub CLIのログインやトークンは使いません。現在は配布Releaseがないため、インストールできる更新はありません。ログ、利用量、AIサービスのAPIキーを要求へ含めません。通信先はGitHubとその配布用ホストです。配布元のSHA-256、固定のDeveloper ID署名元、Apple公証を確認してからアプリ本体を差し替えます。以前のアプリは設置先の退避フォルダに保持し、設定・Keychain・利用データを更新処理から変更しません。
 
-お問い合わせ: [deeple+aimeterstaff@inkboxmail.com](mailto:deeple+aimeterstaff@inkboxmail.com)。個人ログ、集計ファイル、APIキー、私的なパスを添付しないでください。脆弱性はGitHubの非公開報告窓口も利用できます。
+お問い合わせ: [support-aimeter@dobulab.com](mailto:support-aimeter@dobulab.com)。個人ログ、集計ファイル、APIキー、私的なパスを添付しないでください。脆弱性はGitHubの非公開報告窓口も利用できます。
 
 ## Mac App Store版について
 
@@ -60,7 +60,7 @@ Mac App Store版は、利用者が明示的に有効化し、かつ読み取り�
 
 Mac App Store版のプライバシーに関するお問い合わせは、以下までご連絡ください。
 
-- メール：`deeple+aimeterstaff@inkboxmail.com`
+- メール：`support-aimeter@dobulab.com`
 - 公開リポジトリ窓口：`https://github.com/TaigaShinohara/AIMeter-public/issues`
 
 お問い合わせの際は、個人ログ、集計ファイル、APIキーを添付しないでください。

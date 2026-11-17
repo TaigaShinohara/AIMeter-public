@@ -77,7 +77,7 @@
 - アプリ名：`AI Meter`（スラッグ：`aimeter`、version：`1.2.0`、build：`1`）
 - カテゴリ：ユーティリティ / 仕事効率化（最終選択は App Store Connect 登録時に確定）
 - 価格モデル：`free`（無料、IAP・広告なし）
-- サポート連絡先：`deeple+aimeterstaff@inkboxmail.com`
+- サポート連絡先：`support-aimeter@dobulab.com`
 - プライバシーポリシー正本：`docs/PRIVACY.md` をベースに公開URL用原稿を作成（公開URLはユーザー確認）
 - アイコン正本：`scripts/AppIcon.iconset/icon_512x512@2x.png`（2048×2048 PNG、1024×1024 RGB 透過なし版を書き出し）
 - スクリーンショット：16:10（2560×1600 または 1440×900 / 1280×800、RGB透過なし）の撮影計画を作成（実撮影はStore版ビルド完成後）

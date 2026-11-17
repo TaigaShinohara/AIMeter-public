@@ -101,4 +101,4 @@ PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s Tests -p 'test_*.py' -
 
 ## お問い合わせ
 
-[deeple+aimeterstaff@inkboxmail.com](mailto:deeple+aimeterstaff@inkboxmail.com)。ログ・集計ファイル・APIキーは添付しないでください。脆弱性の報告は [SECURITY.md](SECURITY.md) の非公開窓口も利用できます。
+[support-aimeter@dobulab.com](mailto:support-aimeter@dobulab.com)。ログ・集計ファイル・APIキーは添付しないでください。脆弱性の報告は [SECURITY.md](SECURITY.md) の非公開窓口も利用できます。
