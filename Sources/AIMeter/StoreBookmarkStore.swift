@@ -11,7 +11,8 @@ final class StoreBookmarkStore {
 
     enum SelectionStatus: Equatable {
         case unselected
-        /// Resolved bookmark only: access and contents remain unverified.
+        /// Resolved bookmark with a recorded selection identity: access and
+        /// contents remain unverified.
         case saved(URL)
         case needsReselection
     }
@@ -21,6 +22,10 @@ final class StoreBookmarkStore {
         var resolve: (Data) throws -> (url: URL, stale: Bool)
         var start: (URL) -> Bool
         var stop: (URL) -> Void
+        /// Records the selected target's identity at selection time. Returns
+        /// nil when the identity cannot be established; the selection is then
+        /// stored without one and reads back as needing reselection.
+        var captureIdentity: (URL) -> StoreSelectionIdentity? = { StoreSelectionIdentity.capture(url: $0) }
 
         static let live = Operations(
             create: { try $0.bookmarkData(options: [.withSecurityScope, .securityScopeAllowOnlyReadAccess],
@@ -39,6 +44,7 @@ final class StoreBookmarkStore {
     private let defaults: UserDefaults
     private let operations: Operations
     private let storageKey = "storeSourceBookmarks"
+    private let identityStorageKey = "storeSourceIdentities"
     private let lock = NSLock()
 
     init(defaults: UserDefaults = .standard, operations: Operations = .live) {
@@ -47,13 +53,25 @@ final class StoreBookmarkStore {
     }
 
     /// Called only after the user selects a source in the system panel.
+    /// The target's identity is captured while the selection is in effect and
+    /// stored with the bookmark. When no identity can be recorded, any
+    /// identity recorded for an earlier selection of this source is discarded,
+    /// so the new selection is never matched against the previous target.
     func save(_ url: URL, sourceID: String) throws {
         let bookmark = try operations.create(url)
+        let identity = operations.captureIdentity(url)
         lock.lock()
         defer { lock.unlock() }
         var bookmarks = defaults.dictionary(forKey: storageKey) as? [String: Data] ?? [:]
         bookmarks[sourceID] = bookmark
         defaults.set(bookmarks, forKey: storageKey)
+        var identities = defaults.dictionary(forKey: identityStorageKey) as? [String: Data] ?? [:]
+        if let identity, let data = try? JSONEncoder().encode(identity) {
+            identities[sourceID] = data
+        } else {
+            identities.removeValue(forKey: sourceID)
+        }
+        defaults.set(identities, forKey: identityStorageKey)
     }
 
     func remove(sourceID: String) {
@@ -62,12 +80,31 @@ final class StoreBookmarkStore {
         var bookmarks = defaults.dictionary(forKey: storageKey) as? [String: Data] ?? [:]
         bookmarks.removeValue(forKey: sourceID)
         defaults.set(bookmarks, forKey: storageKey)
+        var identities = defaults.dictionary(forKey: identityStorageKey) as? [String: Data] ?? [:]
+        identities.removeValue(forKey: sourceID)
+        defaults.set(identities, forKey: identityStorageKey)
+    }
+
+    /// The identity recorded at selection time, or nil when none was recorded
+    /// (including selections saved before identities existed) or the stored
+    /// record cannot be decoded. A nil result means unverified; it must never
+    /// be treated as a match.
+    func identity(sourceID: String) -> StoreSelectionIdentity? {
+        lock.lock()
+        defer { lock.unlock() }
+        guard let data = (defaults.dictionary(forKey: identityStorageKey) as? [String: Data])?[sourceID] else {
+            return nil
+        }
+        return try? JSONDecoder().decode(StoreSelectionIdentity.self, from: data)
     }
 
     /// Inspect the saved selection without starting security-scoped access or
     /// reading the target. A resolved URL does not establish target existence.
+    /// A selection without a recorded identity is reported as needing
+    /// reselection: pre-identity saves are never trusted implicitly.
     func selectionStatus(sourceID: String) -> SelectionStatus {
         guard let bookmark = savedBookmark(sourceID: sourceID) else { return .unselected }
+        guard identity(sourceID: sourceID) != nil else { return .needsReselection }
         do {
             let resolved = try operations.resolve(bookmark)
             return resolved.stale ? .needsReselection : .saved(resolved.url)
