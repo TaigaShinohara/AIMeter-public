@@ -34,7 +34,6 @@
 		6CE2F22E953313EABE3FB8EB /* AppUpdater.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0E45B5F70990D4FE1569CF5 /* AppUpdater.swift */; };
 		70175EF2AB547E06564DD0F5 /* StoreGeminiCollector.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB76B7DF16C8ADE4F27BA768 /* StoreGeminiCollector.swift */; };
 		77E4A1759D46375204AA2F4A /* StoreSourcePickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBB7E932D5C600567166E6B5 /* StoreSourcePickerView.swift */; };
-		78283C37277595493880FAD5 /* StoreBuildGuard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69F28C3D4E4263D7061A9FB8 /* StoreBuildGuard.swift */; };
 		7B8BE933D0587481E38491F7 /* BoundedProcess.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9AAB17B160FD9872B01E415 /* BoundedProcess.swift */; };
 		827CCDFEF7A17A8EA57E8694 /* IntegrationPermit.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E5ACA942C7FE80E2FB851F8 /* IntegrationPermit.swift */; };
 		82862D3AF2D71E2BA2FDC577 /* StoreScopedFile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 956735082F03A3C64C0A0AF8 /* StoreScopedFile.swift */; };
@@ -48,7 +47,6 @@
 		A1B2C3D4E5F60718293A4B5D /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A4B5C /* PrivacyInfo.xcprivacy */; };
 		A1B2C3D4E5F60718293A4B5E /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A4B5C /* PrivacyInfo.xcprivacy */; };
 		9DF77C2780BD323B15E2B251 /* CollectionIntroduction.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53C12E4C9C02BEE1FDE18ACB /* CollectionIntroduction.swift */; };
-		9E00CE78531C88F83CF57420 /* StoreBuildGuard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69F28C3D4E4263D7061A9FB8 /* StoreBuildGuard.swift */; };
 		A141AE6339FBF3B27B4911E3 /* CharacterSummaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA6A056F9044AA73AEB0B81B /* CharacterSummaryView.swift */; };
 		AAB15BA123E7669AF682C9E3 /* LocalSocketIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F6047F39F97AD344F889A4B /* LocalSocketIdentity.swift */; };
 		AB1DCB76AAA064D4020F4203 /* LiquidBallArtwork.swift in Sources */ = {isa = PBXBuildFile; fileRef = F02B2C69AFDA7E20F0A3C53A /* LiquidBallArtwork.swift */; };
@@ -117,7 +115,6 @@
 		5EA0A3AD765F42F3B51962A7 /* SettingsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		60201A65D2B4C6CA5B7797E1 /* ProviderPathPreferences.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ProviderPathPreferences.swift; sourceTree = "<group>"; };
 		67FFCFF57151AF5F89D0ADD7 /* AIMeterStoreWidget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = AIMeterStoreWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
-		69F28C3D4E4263D7061A9FB8 /* StoreBuildGuard.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StoreBuildGuard.swift; sourceTree = "<group>"; };
 		6FE699011582263FCF61CCB0 /* AIMeterWidget.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AIMeterWidget.swift; sourceTree = "<group>"; };
 		734E846146037FBFD44AA072 /* StoreClaudeCollector.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StoreClaudeCollector.swift; sourceTree = "<group>"; };
 		7F6047F39F97AD344F889A4B /* LocalSocketIdentity.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LocalSocketIdentity.swift; sourceTree = "<group>"; };
@@ -307,7 +304,6 @@
 				59CF81022033279C996289EB /* App.entitlements */,
 				A5AF30AFA1A64A7601AB6FF3 /* Widget.entitlements */,
 				302A90739E8A21ED4242A6C3 /* Widget-Info.plist */,
-				69F28C3D4E4263D7061A9FB8 /* StoreBuildGuard.swift */,
 				F25B1DEC9969D3AADA64F6DF /* App-Info.plist */,
 			);
 			name = Configuration;
@@ -451,7 +447,6 @@
 				16E7E50FCA3002A8B801E28E /* SupportContact.swift in Sources */,
 				FF412DE67EE450F6A75B28D2 /* UsageDisplayModePicker.swift in Sources */,
 				854408D0E7E00060A8CA5991 /* WindsurfDatabase.swift in Sources */,
-				9E00CE78531C88F83CF57420 /* StoreBuildGuard.swift in Sources */,
 				DC4FCDB26C2EE890CDC108F8 /* StoreSourceState.swift in Sources */,
 				D6845632DA65F7627DEF4350 /* StoreSourceCatalog.swift in Sources */,
 				77E4A1759D46375204AA2F4A /* StoreSourcePickerView.swift in Sources */,
@@ -478,7 +473,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				F1B488DC98E700147B79D478 /* AIMeterWidget.swift in Sources */,
-				78283C37277595493880FAD5 /* StoreBuildGuard.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
