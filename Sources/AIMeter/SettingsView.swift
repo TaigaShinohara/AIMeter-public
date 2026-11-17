@@ -631,9 +631,34 @@ private struct ServicesSettingsView: View {
                     .disabled(!currentSub.isEnabled)
             }
 
+            #if AIMETER_APP_STORE
+            if currentSub.id == StoreClaudePipeline.serviceID,
+               let claudeService = StoreSourceCatalog.service(id: StoreClaudePipeline.serviceID) {
+                // Only the sources connected in this slice are offered:
+                // claude.logs. The claude.settings file selection joins
+                // this section when its own slice connects it.
+                SettingsSection("読み取り先") {
+                    StoreSourcePickerView(
+                        service: StoreSourceCatalog.Service(
+                            id: claudeService.id, displayName: claudeService.displayName,
+                            sources: claudeService.sources.filter { $0.id == StoreClaudePipeline.sourceID }),
+                        bookmarks: monitor.storeBookmarks,
+                        onDefer: { _ in },
+                        performChange: { sourceID, operation in
+                            try await monitor.performStoreSelectionChange(sourceID: sourceID, operation: operation)
+                        }
+                    )
+                }
+            } else {
+                SettingsSection("ローカルログパス") {
+                    logPathEditor(for: currentSub.id)
+                }
+            }
+            #else
             SettingsSection("ローカルログパス") {
                 logPathEditor(for: currentSub.id)
             }
+            #endif
         }
     }
 

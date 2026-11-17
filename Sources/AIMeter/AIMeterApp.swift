@@ -257,6 +257,12 @@ final class UsageMonitor: ObservableObject {
     /// displayable usage, so views can explain the state instead of
     /// falling back to a number.
     @Published private(set) var storeCodexPresentation: StoreCodexPipeline.Presentation?
+    private let storeClaudePipeline: StoreClaudePipeline
+    /// The latest Claude pipeline outcome in display terms. Claude
+    /// values are reference-classified in this slice, so the
+    /// presentation never carries data for the confirmed display; it is
+    /// published so views can explain the state.
+    @Published private(set) var storeClaudePresentation: StoreClaudePipeline.Presentation?
     #endif
 
     init(defaults: UserDefaults = .standard, startMonitoring: Bool = true,
@@ -320,6 +326,7 @@ final class UsageMonitor: ObservableObject {
         let storeBookmarks = StoreBookmarkStore(defaults: defaults)
         self.storeBookmarks = storeBookmarks
         self.storeCodexPipeline = StoreCodexPipeline(bookmarks: storeBookmarks)
+        self.storeClaudePipeline = StoreClaudePipeline(bookmarks: storeBookmarks)
         #endif
         self.integrationSettingsObservation = IntegrationSettingsObservation(
             defaults: defaults, openAI: openAIPermitSlot, gemini: geminiPermitSlot,
@@ -1131,18 +1138,27 @@ final class UsageMonitor: ObservableObject {
     private func runLocalCollectorScript() async throws -> LocalUsageData {
         #if AIMETER_APP_STORE
         // The direct collector reads home-directory paths without user
-        // grants, so Store builds collect Codex through the verified scoped
-        // pipeline instead (docs/STORE_CONNECTION_DESIGN.md, stage 4).
-        // Every other service stays unconnected in Store builds. A run that
+        // grants, so Store builds collect through the verified scoped
+        // pipelines instead (docs/STORE_CONNECTION_DESIGN.md, stages 4
+        // and 6). Codex is the only service whose runs can produce
+        // displayable usage data; the Claude pipeline publishes its
+        // presentation only, because its values are reference-classified
+        // in this slice and never enter the confirmed display. Every
+        // other service stays unconnected in Store builds. A run that
         // produced no displayable usage keeps the current display instead
-        // of applying an empty snapshot, so an unselected, unverifiable, or
-        // data-absent source never renders as zero.
-        guard enabledLocalProviderIDs.contains("openai") else {
-            throw StoreCollectionUnavailable.notConnected
+        // of applying an empty snapshot, so an unselected, unverifiable,
+        // or data-absent source never renders as zero.
+        let storeIDs = enabledLocalProviderIDs
+        var storeData: LocalUsageData?
+        if storeIDs.contains("openai") {
+            let presentation = try await storeCodexPipeline.collect()
+            storeCodexPresentation = presentation
+            storeData = presentation.data
         }
-        let presentation = try await storeCodexPipeline.collect()
-        storeCodexPresentation = presentation
-        if let data = presentation.data { return data }
+        if storeIDs.contains(StoreClaudePipeline.serviceID) {
+            storeClaudePresentation = try await storeClaudePipeline.collect()
+        }
+        if let storeData { return storeData }
         throw StoreCollectionUnavailable.notConnected
         #else
         let generation = UUID()
