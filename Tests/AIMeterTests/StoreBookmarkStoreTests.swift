@@ -124,7 +124,8 @@ final class StoreBookmarkStoreTests: XCTestCase {
         var startCount = 0
         let operations = StoreBookmarkStore.Operations(
             create: { _ in Data("bookmark".utf8) }, resolve: { _ in (url, stale) },
-            start: { _ in startCount += 1; return false }, stop: { _ in XCTFail("Access was not started") })
+            start: { _ in startCount += 1; return false }, stop: { _ in XCTFail("Access was not started") },
+            captureIdentity: { _ in Self.syntheticIdentity })
         let store = StoreBookmarkStore(defaults: defaults, operations: operations)
         XCTAssertEqual(store.selectionStatus(sourceID: "codex"), .unselected)
         try store.save(url, sourceID: "codex")
@@ -132,5 +133,121 @@ final class StoreBookmarkStoreTests: XCTestCase {
         stale = true
         XCTAssertEqual(store.selectionStatus(sourceID: "codex"), .needsReselection)
         XCTAssertEqual(startCount, 0)
+    }
+
+    static let syntheticIdentity = StoreSelectionIdentity(
+        fileResourceIdentifier: Data("synthetic-file-id".utf8),
+        volumeIdentifier: Data("synthetic-volume-id".utf8),
+        device: 42, inode: 1001, kind: .directory)
+
+    private func identityOperations(capture: @escaping (URL) -> StoreSelectionIdentity?)
+        -> StoreBookmarkStore.Operations {
+        StoreBookmarkStore.Operations(
+            create: { Data($0.path.utf8) },
+            resolve: { (URL(fileURLWithPath: String(decoding: $0, as: UTF8.self)), false) },
+            start: { _ in true }, stop: { _ in },
+            captureIdentity: capture)
+    }
+
+    func testSaveRecordsIdentityAlongsideBookmark() throws {
+        let suite = "AIMeter.StoreBookmarksTests." + UUID().uuidString
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let url = URL(fileURLWithPath: "/synthetic/source")
+        let store = StoreBookmarkStore(defaults: defaults,
+                                       operations: identityOperations { _ in Self.syntheticIdentity })
+        XCTAssertNil(store.identity(sourceID: "codex"))
+        try store.save(url, sourceID: "codex")
+        XCTAssertEqual(store.identity(sourceID: "codex"), Self.syntheticIdentity)
+        XCTAssertEqual(store.selectionStatus(sourceID: "codex"), .saved(url))
+        // A second store over the same defaults reads the same record back.
+        let reread = StoreBookmarkStore(defaults: defaults,
+                                        operations: identityOperations { _ in nil })
+        XCTAssertEqual(reread.identity(sourceID: "codex"), Self.syntheticIdentity)
+    }
+
+    func testLegacyBookmarkWithoutIdentityNeedsReselection() throws {
+        let suite = "AIMeter.StoreBookmarksTests." + UUID().uuidString
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let url = URL(fileURLWithPath: "/synthetic/source")
+        // Simulate a selection saved before identities were recorded: only
+        // the bookmark entry exists, in the pre-identity storage format.
+        defaults.set(["codex": Data(url.path.utf8)], forKey: "storeSourceBookmarks")
+        let store = StoreBookmarkStore(defaults: defaults,
+                                       operations: identityOperations { _ in Self.syntheticIdentity })
+        XCTAssertNil(store.identity(sourceID: "codex"))
+        XCTAssertEqual(store.selectionStatus(sourceID: "codex"), .needsReselection)
+    }
+
+    func testSelectionWithoutRecordableIdentityNeedsReselection() throws {
+        let suite = "AIMeter.StoreBookmarksTests." + UUID().uuidString
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let url = URL(fileURLWithPath: "/synthetic/source")
+        let store = StoreBookmarkStore(defaults: defaults,
+                                       operations: identityOperations { _ in nil })
+        try store.save(url, sourceID: "codex")
+        XCTAssertNil(store.identity(sourceID: "codex"))
+        XCTAssertEqual(store.selectionStatus(sourceID: "codex"), .needsReselection)
+    }
+
+    func testReselectionWithoutIdentityClearsRecordedIdentity() throws {
+        let suite = "AIMeter.StoreBookmarksTests." + UUID().uuidString
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let first = URL(fileURLWithPath: "/synthetic/one")
+        let second = URL(fileURLWithPath: "/synthetic/two")
+        var recordable = true
+        let store = StoreBookmarkStore(defaults: defaults,
+                                       operations: identityOperations { _ in recordable ? Self.syntheticIdentity : nil })
+        try store.save(first, sourceID: "codex")
+        XCTAssertEqual(store.identity(sourceID: "codex"), Self.syntheticIdentity)
+        recordable = false
+        try store.save(second, sourceID: "codex")
+        XCTAssertNil(store.identity(sourceID: "codex"))
+        XCTAssertEqual(store.selectionStatus(sourceID: "codex"), .needsReselection)
+    }
+
+    func testRemoveDeletesRecordedIdentity() throws {
+        let suite = "AIMeter.StoreBookmarksTests." + UUID().uuidString
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let url = URL(fileURLWithPath: "/synthetic/source")
+        let store = StoreBookmarkStore(defaults: defaults,
+                                       operations: identityOperations { _ in Self.syntheticIdentity })
+        try store.save(url, sourceID: "codex")
+        XCTAssertNotNil(store.identity(sourceID: "codex"))
+        store.remove(sourceID: "codex")
+        XCTAssertNil(store.identity(sourceID: "codex"))
+        XCTAssertEqual(store.selectionStatus(sourceID: "codex"), .unselected)
+    }
+
+    func testCorruptIdentityRecordIsTreatedAsMissing() throws {
+        let suite = "AIMeter.StoreBookmarksTests." + UUID().uuidString
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let url = URL(fileURLWithPath: "/synthetic/source")
+        let store = StoreBookmarkStore(defaults: defaults,
+                                       operations: identityOperations { _ in Self.syntheticIdentity })
+        try store.save(url, sourceID: "codex")
+        defaults.set(["codex": Data("not an identity record".utf8)], forKey: "storeSourceIdentities")
+        XCTAssertNil(store.identity(sourceID: "codex"))
+        XCTAssertEqual(store.selectionStatus(sourceID: "codex"), .needsReselection)
+    }
+
+    func testFileSelectionIdentityKeepsFileKind() throws {
+        let suite = "AIMeter.StoreBookmarksTests." + UUID().uuidString
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let url = URL(fileURLWithPath: "/synthetic/settings.json")
+        let fileIdentity = StoreSelectionIdentity(
+            fileResourceIdentifier: Data("synthetic-file-id".utf8),
+            volumeIdentifier: nil, device: 42, inode: 2002, kind: .file)
+        let store = StoreBookmarkStore(defaults: defaults,
+                                       operations: identityOperations { _ in fileIdentity })
+        try store.save(url, sourceID: "claude.settings")
+        XCTAssertEqual(store.identity(sourceID: "claude.settings"), fileIdentity)
+        XCTAssertEqual(store.identity(sourceID: "claude.settings")?.kind, .file)
     }
 }
