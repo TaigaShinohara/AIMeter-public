@@ -54,14 +54,14 @@ final class StoreSourceStateTests: XCTestCase {
         XCTAssertFalse(checked9)
         let checked10 = await state.finish(.success(count: 0, date: now), source: "a", run: run)
         XCTAssertTrue(checked10)
-        let checked11 = await state.finish(.notDetected, source: "b", run: run)
+        let checked11 = await state.finish(.noData, source: "b", run: run)
         XCTAssertTrue(checked11)
         let checked12 = await state.finish(.invalidTarget, source: "c", run: run)
         XCTAssertTrue(checked12)
         let snapshot = await state.snapshot()
         XCTAssertEqual(snapshot.coverage, .partial)
         XCTAssertEqual(snapshot.sources["a"]?.collection, .success(.init(count: 0, date: now)))
-        XCTAssertEqual(snapshot.sources["b"]?.collection, .notDetected)
+        XCTAssertEqual(snapshot.sources["b"]?.collection, .noData)
         XCTAssertEqual(snapshot.sources["c"]?.collection, .invalidTarget)
         let checked13 = await state.finish(.failed, source: "a", run: run)
         XCTAssertFalse(checked13)
@@ -95,6 +95,64 @@ final class StoreSourceStateTests: XCTestCase {
         await state.setPermission(.granted, for: "a")
         let accepted = await state.finish(.success(count: 1, date: Date()), source: "a", run: run)
         XCTAssertFalse(accepted)
+    }
+
+    func testPartialEstimateAndReferenceResultsAreAcceptedAndCover() async throws {
+        let state = StoreSourceState(sourceIDs: ["a", "b", "c"])
+        await state.setEnabled(true)
+        for id in ["a", "b", "c"] { await state.setPermission(.granted, for: id) }
+        let pending = await state.begin()
+        let run = try XCTUnwrap(pending)
+        let now = Date()
+        let checked1 = await state.finish(.partial(count: 2, date: now), source: "a", run: run)
+        XCTAssertTrue(checked1)
+        let checked2 = await state.finish(.estimate(count: 3, date: now), source: "b", run: run)
+        XCTAssertTrue(checked2)
+        let checked3 = await state.finish(.reference(count: 4, date: now), source: "c", run: run)
+        XCTAssertTrue(checked3)
+        let snapshot = await state.snapshot()
+        XCTAssertEqual(snapshot.coverage, .complete)
+        XCTAssertEqual(snapshot.sources["a"]?.collection, .partial(.init(count: 2, date: now)))
+        XCTAssertEqual(snapshot.sources["b"]?.collection, .estimate(.init(count: 3, date: now)))
+        XCTAssertEqual(snapshot.sources["c"]?.collection, .reference(.init(count: 4, date: now)))
+        // Only measured results become the previous success; estimates and
+        // reference values never take the place of a confirmed value.
+        XCTAssertEqual(snapshot.sources["a"]?.previousSuccess, .init(count: 2, date: now))
+        XCTAssertNil(snapshot.sources["b"]?.previousSuccess)
+        XCTAssertNil(snapshot.sources["c"]?.previousSuccess)
+    }
+
+    func testNegativeValueResultsAreRejected() async throws {
+        let state = StoreSourceState(sourceIDs: ["a", "b", "c"])
+        await state.setEnabled(true)
+        for id in ["a", "b", "c"] { await state.setPermission(.granted, for: id) }
+        let pending = await state.begin()
+        let run = try XCTUnwrap(pending)
+        let now = Date()
+        let checked1 = await state.finish(.partial(count: -1, date: now), source: "a", run: run)
+        XCTAssertFalse(checked1)
+        let checked2 = await state.finish(.estimate(count: -1, date: now), source: "b", run: run)
+        XCTAssertFalse(checked2)
+        let checked3 = await state.finish(.reference(count: -1, date: now), source: "c", run: run)
+        XCTAssertFalse(checked3)
+        let snapshot = await state.snapshot()
+        XCTAssertEqual(snapshot.coverage, .none)
+    }
+
+    func testEstimateDoesNotReplacePreviousMeasuredSuccess() async throws {
+        let state = StoreSourceState(sourceIDs: ["a"])
+        await state.setEnabled(true)
+        await state.setPermission(.granted, for: "a")
+        let pending1 = await state.begin()
+        let first = try XCTUnwrap(pending1)
+        let now = Date()
+        _ = await state.finish(.success(count: 7, date: now), source: "a", run: first)
+        let pending2 = await state.begin()
+        let next = try XCTUnwrap(pending2)
+        _ = await state.finish(.estimate(count: 3, date: now), source: "a", run: next)
+        let snapshot = await state.snapshot()
+        XCTAssertEqual(snapshot.sources["a"]?.collection, .estimate(.init(count: 3, date: now)))
+        XCTAssertEqual(snapshot.sources["a"]?.previousSuccess, .init(count: 7, date: now))
     }
 
     func testFailureKeepsPreviousSuccessForExplicitlyStalePresentation() async throws {
