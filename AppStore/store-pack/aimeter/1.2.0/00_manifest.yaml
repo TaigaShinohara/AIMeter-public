@@ -8,7 +8,7 @@ secondary_category: "Developer Tools"
 price_model: "free"
 support_email: "deeple+aimeterstaff@inkboxmail.com"
 support_url: "https://github.com/TaigaShinohara/AIMeter-public/issues"
-privacy_policy_url: "TBD (候補: https://github.com/TaigaShinohara/AIMeter-public/blob/main/docs/PRIVACY.md ※Store版記載反映後に確定)"
+privacy_policy_url: "https://github.com/TaigaShinohara/AIMeter-public/blob/main/docs/PRIVACY.md"
 website_url: "https://github.com/TaigaShinohara/AIMeter-public"
 target_stores:
   - store: "apple-mac-app-store"
