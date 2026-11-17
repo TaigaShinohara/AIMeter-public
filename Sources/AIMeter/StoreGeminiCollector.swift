@@ -9,11 +9,31 @@ enum StoreGeminiCollector {
     struct Result: Equatable {
         let brain: SourceState
         let chats: SourceState
+        /// Period totals aggregated from both inputs together. Kept for
+        /// the existing combined consumers; a caller that presents one
+        /// input's values must use the separated totals below instead,
+        /// never this sum.
         let used: ProviderPeriodUsageJSON
         let raw: ProviderPeriodUsageJSON
         let cost: Double
         /// True only when an included brain record used the text-length estimate.
         let brainUsesEstimate: Bool
+        /// Period totals aggregated from the brain input alone. Brain
+        /// records without token values fall back to a text-length
+        /// estimate, so these totals can include estimated values (see
+        /// `brainUsesEstimate`); the first Store release does not
+        /// present them in any frame.
+        var brainUsed: ProviderPeriodUsageJSON = ProviderPeriodUsageJSON()
+        /// Period totals aggregated from the chats input alone. The
+        /// chats parser has no estimate path: a message counts only
+        /// when its full token breakdown is present, so these totals
+        /// are measured values, already separated from every brain
+        /// record (docs/STORE_CONNECTION_DESIGN.md, stage 6).
+        var chatsUsed: ProviderPeriodUsageJSON = ProviderPeriodUsageJSON()
+        /// Cost aggregated from the brain input alone.
+        var brainCost: Double = 0
+        /// Cost aggregated from the chats input alone.
+        var chatsCost: Double = 0
     }
     struct Limits {
         var tree = StoreSafeFileTree.Limits()
@@ -73,10 +93,17 @@ enum StoreGeminiCollector {
         }
         let brainFiles = try brainFD.map { try scan($0, brain: true) }
         let chatFiles = try chatsFD.map { try scan($0, brain: false) }
-        var used = [Int](repeating: 0, count: 5), raw = used
+        // Aggregation is tracked per input from the start, so each
+        // input's totals can be reported on their own; the combined
+        // totals returned in `used`/`raw`/`cost` are the element-wise
+        // sums of the two, exactly as the single-accumulator version
+        // produced.
+        var brainUsed = [Int](repeating: 0, count: 5), brainRaw = brainUsed
+        var chatsUsed = [Int](repeating: 0, count: 5), chatsRaw = chatsUsed
         let intervals: [TimeInterval] = [7200, 18000, 86400, 604800, 2592000]
-        var cost = 0.0
-        func add(date: Date, effective: Int, rawCount: Int, stepCost: Double) throws {
+        var brainCost = 0.0, chatsCost = 0.0
+        func add(date: Date, effective: Int, rawCount: Int, stepCost: Double,
+                 used: inout [Int], raw: inout [Int], cost: inout Double) throws {
             try check()
             for i in intervals.indices where date >= now.addingTimeInterval(-intervals[i]) {
                 used[i] = try UsageNumber.add(used[i], effective)
@@ -132,7 +159,8 @@ enum StoreGeminiCollector {
                             else if let count = unmatched[fingerprint], count > 0 { unmatched[fingerprint] = count - 1; continue }
                         }
                         if estimated { brainUsesEstimate = true }
-                        try add(date: date, effective: effective, rawCount: rawCount, stepCost: stepCost)
+                        try add(date: date, effective: effective, rawCount: rawCount, stepCost: stepCost,
+                                used: &brainUsed, raw: &brainRaw, cost: &brainCost)
                     }
                 }
             }
@@ -160,7 +188,8 @@ enum StoreGeminiCollector {
                     let uncached = try UsageNumber.difference(inp, cached)
                     chatValid += 1
                     try add(date: date, effective: try UsageNumber.sum([uncached, out, cached / 10]), rawCount: total,
-                            stepCost: (Double(uncached) * 1.25 + Double(cached) * 0.3125 + Double(out) * 5) / 1_000_000)
+                            stepCost: (Double(uncached) * 1.25 + Double(cached) * 0.3125 + Double(out) * 5) / 1_000_000,
+                            used: &chatsUsed, raw: &chatsRaw, cost: &chatsCost)
                 }
             }
         }
@@ -172,8 +201,14 @@ enum StoreGeminiCollector {
         func periods(_ a: [Int]) -> ProviderPeriodUsageJSON {
             ProviderPeriodUsageJSON(twoHours: a[0], fiveHours: a[1], daily: a[2], weekly: a[3], monthly: a[4])
         }
+        func combined(_ a: [Int], _ b: [Int]) throws -> [Int] {
+            try zip(a, b).map { pair in try UsageNumber.add(pair.0, pair.1) }
+        }
         return Result(brain: state(brainFD != nil, brainValid, brainInvalid), chats: state(chatsFD != nil, chatValid, chatInvalid),
-                      used: periods(used), raw: periods(raw), cost: round(cost * 100) / 100,
-                      brainUsesEstimate: brainUsesEstimate)
+                      used: periods(try combined(brainUsed, chatsUsed)), raw: periods(try combined(brainRaw, chatsRaw)),
+                      cost: round((brainCost + chatsCost) * 100) / 100,
+                      brainUsesEstimate: brainUsesEstimate,
+                      brainUsed: periods(brainUsed), chatsUsed: periods(chatsUsed),
+                      brainCost: round(brainCost * 100) / 100, chatsCost: round(chatsCost * 100) / 100)
     }
 }

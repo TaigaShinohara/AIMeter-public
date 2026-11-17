@@ -206,14 +206,14 @@ enum StoreDisplayAdapter {
     // MARK: - Gemini
 
     /// Brain logs: token-bearing records are measured. When any included
-    /// record used the character-length estimate, the aggregated values
-    /// cannot be separated into measured and estimated parts, so the
-    /// classification excludes the brain input's values as a whole rather
-    /// than presenting them as measured or as an approximation.
+    /// record used the character-length estimate, the brain input's own
+    /// totals cannot be separated into measured and estimated parts, so
+    /// the classification excludes the brain input's values as a whole
+    /// rather than presenting them as measured or as an approximation.
     ///
-    /// The collector's period totals merge the brain and chats inputs, so
-    /// these conversions classify each input's state only; per-input values
-    /// are a later stage's concern.
+    /// These conversions classify each input's state only. The
+    /// collector's per-input totals are separated (stage 6), and the
+    /// chats input's values are consumed by `StoreGeminiPipeline`.
     static func geminiBrain(_ result: StoreGeminiCollector.Result) -> StoreDisplayAdaptation {
         switch result.brain {
         case .unselected: return .state(.notSelected)

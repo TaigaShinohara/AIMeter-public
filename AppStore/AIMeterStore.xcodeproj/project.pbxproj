@@ -28,6 +28,7 @@
 		6364EAEC8989DE0A0107EB79 /* StoreCodexPipeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = F188F109109E3CF8ABC6ABA1 /* StoreCodexPipeline.swift */; };
 		74E8AE216AAD034DF3A128FB /* StoreClaudePipeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD72439C85C5D90C1E0DC806 /* StoreClaudePipeline.swift */; };
 		B39EBA2F47B1CC2FD3A0ACA6 /* StoreCopilotPipeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05C1838911D876075D70C955 /* StoreCopilotPipeline.swift */; };
+		27DE487EFDE4C969B1E5ABAC /* StoreGeminiPipeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = D002FD37178C9FC156B5CA61 /* StoreGeminiPipeline.swift */; };
 		65F7116DE4303E76D8EEFDC3 /* StoreScopedDirectory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452F66FE029C7C12DB669099 /* StoreScopedDirectory.swift */; };
 		677864276779E53DF64A5261 /* AntigravityQuotaClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6572CF399803324E68B6394 /* AntigravityQuotaClient.swift */; };
 		6CE2F22E953313EABE3FB8EB /* AppUpdater.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0E45B5F70990D4FE1569CF5 /* AppUpdater.swift */; };
@@ -151,6 +152,7 @@
 		F188F109109E3CF8ABC6ABA1 /* StoreCodexPipeline.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StoreCodexPipeline.swift; sourceTree = "<group>"; };
 		BD72439C85C5D90C1E0DC806 /* StoreClaudePipeline.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StoreClaudePipeline.swift; sourceTree = "<group>"; };
 		05C1838911D876075D70C955 /* StoreCopilotPipeline.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StoreCopilotPipeline.swift; sourceTree = "<group>"; };
+		D002FD37178C9FC156B5CA61 /* StoreGeminiPipeline.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StoreGeminiPipeline.swift; sourceTree = "<group>"; };
 		F25B1DEC9969D3AADA64F6DF /* App-Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = "App-Info.plist"; sourceTree = "<group>"; };
 		F3392C67F51872C620FC6B6C /* StoreBookmarkStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StoreBookmarkStore.swift; sourceTree = "<group>"; };
 		F6D52C261B9448ABD052B216 /* LICENSE */ = {isa = PBXFileReference; includeInIndex = 1; name = LICENSE; path = ../LICENSE; sourceTree = "<group>"; };
@@ -235,6 +237,7 @@
 				F188F109109E3CF8ABC6ABA1 /* StoreCodexPipeline.swift */,
 				BD72439C85C5D90C1E0DC806 /* StoreClaudePipeline.swift */,
 				05C1838911D876075D70C955 /* StoreCopilotPipeline.swift */,
+				D002FD37178C9FC156B5CA61 /* StoreGeminiPipeline.swift */,
 			);
 			name = AIMeter;
 			path = AIMeter;
@@ -466,6 +469,7 @@
 				6364EAEC8989DE0A0107EB79 /* StoreCodexPipeline.swift in Sources */,
 				74E8AE216AAD034DF3A128FB /* StoreClaudePipeline.swift in Sources */,
 				B39EBA2F47B1CC2FD3A0ACA6 /* StoreCopilotPipeline.swift in Sources */,
+				27DE487EFDE4C969B1E5ABAC /* StoreGeminiPipeline.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -664,6 +664,25 @@ private struct ServicesSettingsView: View {
                         }
                     )
                 }
+            } else if currentSub.id == StoreGeminiPipeline.serviceID,
+                      let geminiService = StoreSourceCatalog.service(id: StoreGeminiPipeline.serviceID) {
+                // Only the sources connected in this slice are offered:
+                // gemini.chats. The gemini.brain selection is not
+                // offered: its values include a text-length estimate
+                // the first Store release does not present, so the
+                // brain input stays unconnected.
+                SettingsSection("読み取り先") {
+                    StoreSourcePickerView(
+                        service: StoreSourceCatalog.Service(
+                            id: geminiService.id, displayName: geminiService.displayName,
+                            sources: geminiService.sources.filter { $0.id == StoreGeminiPipeline.sourceID }),
+                        bookmarks: monitor.storeBookmarks,
+                        onDefer: { _ in },
+                        performChange: { sourceID, operation in
+                            try await monitor.performStoreSelectionChange(sourceID: sourceID, operation: operation)
+                        }
+                    )
+                }
             } else {
                 SettingsSection("ローカルログパス") {
                     logPathEditor(for: currentSub.id)

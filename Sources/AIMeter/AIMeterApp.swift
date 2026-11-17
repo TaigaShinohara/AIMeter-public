@@ -269,6 +269,14 @@ final class UsageMonitor: ObservableObject {
     /// presentation never carries data for the confirmed display; it is
     /// published so views can explain the state.
     @Published private(set) var storeCopilotPresentation: StoreCopilotPipeline.Presentation?
+    private let storeGeminiPipeline: StoreGeminiPipeline
+    /// The latest Gemini pipeline outcome in display terms. Gemini
+    /// chats values are measured in this slice, so the presentation
+    /// can carry data for the confirmed display; it is published on
+    /// every refresh, including runs that produced no displayable
+    /// usage, so views can explain the state instead of falling back
+    /// to a number.
+    @Published private(set) var storeGeminiPresentation: StoreGeminiPipeline.Presentation?
     #endif
 
     init(defaults: UserDefaults = .standard, startMonitoring: Bool = true,
@@ -334,6 +342,7 @@ final class UsageMonitor: ObservableObject {
         self.storeCodexPipeline = StoreCodexPipeline(bookmarks: storeBookmarks)
         self.storeClaudePipeline = StoreClaudePipeline(bookmarks: storeBookmarks)
         self.storeCopilotPipeline = StoreCopilotPipeline(bookmarks: storeBookmarks)
+        self.storeGeminiPipeline = StoreGeminiPipeline(bookmarks: storeBookmarks)
         #endif
         self.integrationSettingsObservation = IntegrationSettingsObservation(
             defaults: defaults, openAI: openAIPermitSlot, gemini: geminiPermitSlot,
@@ -1147,11 +1156,12 @@ final class UsageMonitor: ObservableObject {
         // The direct collector reads home-directory paths without user
         // grants, so Store builds collect through the verified scoped
         // pipelines instead (docs/STORE_CONNECTION_DESIGN.md, stages 4
-        // and 6). Codex is the only service whose runs can produce
-        // displayable usage data; the Claude and Copilot pipelines
-        // publish their presentations only, because their values are
-        // reference-classified in these slices and never enter the
-        // confirmed display. Every
+        // and 6). Codex and Gemini chats are the services whose runs
+        // can produce displayable usage data; their payloads are
+        // merged field-wise into one snapshot. The Claude and Copilot
+        // pipelines publish their presentations only, because their
+        // values are reference-classified in these slices and never
+        // enter the confirmed display. Every
         // other service stays unconnected in Store builds. A run that
         // produced no displayable usage keeps the current display instead
         // of applying an empty snapshot, so an unselected, unverifiable,
@@ -1168,6 +1178,17 @@ final class UsageMonitor: ObservableObject {
         }
         if storeIDs.contains(StoreCopilotPipeline.serviceID) {
             storeCopilotPresentation = try await storeCopilotPipeline.collect()
+        }
+        if storeIDs.contains(StoreGeminiPipeline.serviceID) {
+            let presentation = try await storeGeminiPipeline.collect()
+            storeGeminiPresentation = presentation
+            if let geminiData = presentation.data {
+                var merged = storeData ?? LocalUsageData()
+                merged.geminiUsedTokens = geminiData.geminiUsedTokens
+                merged.geminiCostUSD = geminiData.geminiCostUSD
+                merged.geminiUsedByPeriod = geminiData.geminiUsedByPeriod
+                storeData = merged
+            }
         }
         if let storeData { return storeData }
         throw StoreCollectionUnavailable.notConnected
