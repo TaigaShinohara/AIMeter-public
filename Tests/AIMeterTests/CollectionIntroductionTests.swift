@@ -128,175 +128,67 @@ final class CollectionIntroductionTests: XCTestCase {
     }
 
     @MainActor
-    func testPageMapEnforcesOneClaimPerPageAndThreeSteps() {
-        for worry in OnboardingWorryChoice.allCases {
-            for trial in OnboardingDisplayTrialChoice.allCases {
-                let pages = OnboardingController.buildPages(worry: worry, trial: trial)
-                XCTAssertEqual(pages.count, 14)
+    func testNavigationAndModeSelectionNeverStartCollectionOrOverwriteSavedSettings() async {
+        var collections = 0
+        let monitor = UsageMonitor(defaults: defaults, startMonitoring: false,
+            requiresCollectionIntroduction: true, keychainOperations: noCredentials {},
+            localCollector: { _, _ in collections += 1; return LocalUsageData() })
+        monitor.isDetailedView = true
+        monitor.menuBarDisplayMode = "compact"
+        monitor.showOpenAISection = false
+        monitor.showGeminiSection = false
 
-                // Exactly 3 step pages
-                let steps = pages.filter { $0.role == .step }
-                XCTAssertEqual(steps.count, 3)
-                XCTAssertEqual(steps.map(\.heading), [
-                    "1. 使うAIを選ぶ",
-                    "2. メニューバーを見る",
-                    "3. 要点と全期間を切り替える"
-                ])
-
-                for page in pages {
-                    XCTAssertFalse(page.heading.isEmpty)
-                    XCTAssertFalse(page.heading.contains("\n"), "Heading must be a single line: \(page.heading)")
-                    XCTAssertFalse(page.visualCenterpiece.isEmpty)
-                    XCTAssertFalse(page.heroAnimationMeaning.isEmpty)
-                    XCTAssertLessThanOrEqual(page.ambientElementCount, 2, "Ambient animation max 2 elements")
-
-                    // Forbidden absolute guarantee words
-                    for forbidden in ["必ず", "絶対に", "誰でも"] {
-                        XCTAssertFalse(page.heading.contains(forbidden))
-                        XCTAssertFalse(page.supplement.contains(forbidden))
-                    }
-                }
-
-                // Serious privacy page has 0 ambient animations
-                let privacyPage = pages.first { $0.pageID == .value(.localPrivacy) }
-                XCTAssertEqual(privacyPage?.ambientElementCount, 0)
-
-                // Question and Result are on separate pages; question pages have no Next button
-                let worryIndex = try! XCTUnwrap(pages.firstIndex { $0.pageID == .worrySelection })
-                XCTAssertFalse(pages[worryIndex].showsNextButton)
-                XCTAssertEqual(pages[worryIndex + 1].pageID, .worryMatch)
-                XCTAssertEqual(pages[worryIndex + 1].role, .match)
-                XCTAssertTrue(pages[worryIndex + 1].showsNextButton)
-
-                let trialIndex = try! XCTUnwrap(pages.firstIndex { $0.pageID == .trialInteraction })
-                XCTAssertFalse(pages[trialIndex].showsNextButton)
-                XCTAssertEqual(pages[trialIndex + 1].pageID, .trialResult)
-                XCTAssertEqual(pages[trialIndex + 1].role, .match)
-                XCTAssertTrue(pages[trialIndex + 1].showsNextButton)
-            }
-        }
-    }
-
-    @MainActor
-    func testWorrySelectionAndTrialChoiceReorderValuesAndConfigureInitialSettings() {
-        var haptics: [OnboardingReactionLevel] = []
-        let recorder = MockHapticPerformer { haptics.append($0) }
-        let monitor = UsageMonitor(
-            defaults: defaults,
-            startMonitoring: false,
-            requiresCollectionIntroduction: true,
-            keychainOperations: noCredentials {}
-        )
-        let controller = OnboardingController(
-            initialPageIndex: 1,
-            autoAdvanceDelayNanoseconds: 0,
-            hapticPerformer: recorder
-        )
-
-        // Select multiToolCheck on page #2 -> auto-advances to #3 (worryMatch)
-        controller.selectWorry(.multiToolCheck, applyTo: monitor)
-        XCTAssertEqual(controller.currentPage.pageID, .worryMatch)
-        XCTAssertEqual(monitor.menuBarDisplayMode, "compact")
-        XCTAssertEqual(haptics.last, .medium)
-        XCTAssertNotNil(controller.latestPraise)
-
-        // Value pages after worryMatch now start with .unifiedView
-        let valueIDs = controller.pages.compactMap { page -> OnboardingValueTopic? in
-            if case .value(let topic) = page.pageID { return topic }
-            return nil
-        }
-        XCTAssertEqual(valueIDs, [.unifiedView, .proactiveAlert, .localPrivacy])
-
-        // Go back to re-select privacyConcern
+        let controller = OnboardingController()
+        _ = CollectionIntroductionView(monitor: monitor)
+        XCTAssertTrue(monitor.isDetailedView, "Opening the introduction preserves saved display settings")
+        controller.completeOnboarding(monitor: monitor)
+        XCTAssertTrue(monitor.requiresCollectionIntroduction, "Only the final consent step can start collection")
         controller.goBack()
-        XCTAssertEqual(controller.currentPage.pageID, .worrySelection)
-        XCTAssertNil(controller.latestPraise, "Back navigation must not emit praise")
-
-        controller.selectWorry(.privacyConcern, applyTo: monitor)
-        XCTAssertEqual(controller.currentPage.pageID, .worryMatch)
-        XCTAssertFalse(monitor.showUsageAmounts)
-        let privacyFirstIDs = controller.pages.compactMap { page -> OnboardingValueTopic? in
-            if case .value(let topic) = page.pageID { return topic }
-            return nil
-        }
-        XCTAssertEqual(privacyFirstIDs, [.localPrivacy, .proactiveAlert, .unifiedView])
-
-        // Jump to trial interaction page (#11, index 10) and select detailed view
-        while controller.currentPage.pageID != .trialInteraction {
-            controller.goNext()
-        }
-        controller.selectTrialChoice(.detailed, applyTo: monitor)
-        XCTAssertEqual(controller.currentPage.pageID, .trialResult)
-        XCTAssertTrue(monitor.isDetailedView)
-        XCTAssertEqual(haptics.last, .large, "Trial result celebration triggers large reaction")
-
-        // Skip to connection page (#14) and complete onboarding
+        XCTAssertEqual(controller.currentPage, .overview)
+        controller.goNext()
+        XCTAssertEqual(controller.currentPage, .display)
+        controller.selectDisplayMode(false, applyTo: monitor)
+        XCTAssertFalse(monitor.isDetailedView)
+        XCTAssertEqual(controller.currentPage, .display, "A selection must not auto-advance")
+        controller.selectDisplayMode(true, applyTo: monitor)
+        controller.goBack()
         controller.skipToConnection()
-        XCTAssertEqual(controller.currentPage.pageID, .connection)
-        XCTAssertNil(controller.latestPraise, "Skip must not emit praise")
-        XCTAssertTrue(monitor.requiresCollectionIntroduction, "Skip must not start collection without explicit start")
+        controller.goNext()
+        XCTAssertEqual(controller.currentPage, .services)
+        await monitor.refresh()
+        XCTAssertEqual(collections, 0)
+        XCTAssertTrue(monitor.requiresCollectionIntroduction)
+        XCTAssertFalse(CollectionIntroduction.hasAcknowledged(in: defaults))
+        XCTAssertEqual(monitor.menuBarDisplayMode, "compact")
+        XCTAssertTrue(monitor.isDetailedView)
 
         controller.completeOnboarding(monitor: monitor)
         XCTAssertFalse(monitor.requiresCollectionIntroduction)
+        XCTAssertTrue(CollectionIntroduction.hasAcknowledged(in: defaults))
+        XCTAssertFalse(monitor.showOpenAISection)
+        XCTAssertFalse(monitor.showGeminiSection)
         XCTAssertFalse(CollectionIntroduction.shouldShowOnboarding(in: defaults))
         XCTAssertTrue(CollectionIntroduction.shouldShowOnboarding(in: defaults, requiredVersion: 2))
     }
 
     @MainActor
-    func testPraiseNeverRepeatsConsecutivelyAndWindowDotsSlideEveryPage() {
-        let controller = OnboardingController(autoAdvanceDelayNanoseconds: 0, hapticPerformer: MockHapticPerformer { _ in })
-
-        for level in [OnboardingReactionLevel.small, .medium, .large] {
-            var previous: String?
-            for _ in 0..<6 {
-                let current = controller.triggerReaction(level)
-                XCTAssertNotNil(current)
-                XCTAssertNotEqual(current, previous, "Praise for \(level) must not repeat consecutively")
-                previous = current
-            }
-        }
-
-        // Verify Window Dots across all 14 pages
-        let total = controller.pages.count
-        var previousActiveIndex: Int?
-        for pageIndex in 0..<total {
-            let model = OnboardingWindowDotsModel(currentPage: pageIndex, totalPages: total)
-            XCTAssertEqual(model.dots.count, 5, "At most 5 dots visible")
-            let expectedStart = min(max(0, pageIndex - 2), total - 5)
-            XCTAssertEqual(model.windowStart, expectedStart)
-
-            let currentDots = model.dots.filter { $0.scale == .current }
-            XCTAssertEqual(currentDots.count, 1)
-            XCTAssertEqual(currentDots.first?.pageIndex, pageIndex)
-            if let prev = previousActiveIndex {
-                XCTAssertEqual(currentDots.first!.pageIndex - prev, 1, "Active dot advances by 1 every page")
-            }
-            previousActiveIndex = currentDots.first?.pageIndex
-
-            if expectedStart > 0 {
-                XCTAssertEqual(model.dots.first?.scale, .edgeMore)
-            }
-            if expectedStart + 5 < total {
-                XCTAssertEqual(model.dots.last?.scale, .edgeMore)
-            }
-            XCTAssertEqual(model.dots.allSatisfy(\.isCompletedFinal), pageIndex == total - 1)
-        }
-    }
-
-    @MainActor
     func testKeyOnboardingPagesRenderSynthetically() throws {
-        let monitor = UsageMonitor(
-            defaults: defaults,
-            startMonitoring: false,
-            requiresCollectionIntroduction: true,
-            keychainOperations: noCredentials {}
-        )
-        for pageIndex in 0..<14 {
-            let content = CollectionIntroductionView(monitor: monitor, initialPageIndex: pageIndex)
-                .frame(width: 320)
-                .padding(14)
-                .background(Color(nsColor: .windowBackgroundColor))
-            try renderSyntheticPreview(content, name: String(format: "onboarding-page-%02d", pageIndex + 1), maximumHeight: 1600)
+        let monitor = UsageMonitor(defaults: defaults, startMonitoring: false,
+            requiresCollectionIntroduction: true, keychainOperations: noCredentials {})
+        for detailed in [false, true] {
+            monitor.isDetailedView = detailed
+            for dark in [false, true] {
+                for pageIndex in OnboardingController.Page.allCases.map(\.rawValue) {
+                    let content = CollectionIntroductionView(monitor: monitor, initialPageIndex: pageIndex)
+                        .frame(width: 320)
+                        .padding(14)
+                        .background(Color(nsColor: .windowBackgroundColor))
+                        .environment(\.colorScheme, dark ? .dark : .light)
+                    try renderSyntheticPreview(content,
+                        name: "onboarding-\(pageIndex + 1)-\(detailed ? "all" : "summary")-\(dark ? "dark" : "light")",
+                        maximumHeight: 1200)
+                }
+            }
         }
     }
 
@@ -325,12 +217,5 @@ final class CollectionIntroductionTests: XCTestCase {
                   onRead()
                   return (errSecItemNotFound, nil)
               })
-    }
-}
-
-private struct MockHapticPerformer: OnboardingHapticPerforming {
-    let handler: (OnboardingReactionLevel) -> Void
-    func perform(level: OnboardingReactionLevel) {
-        handler(level)
     }
 }

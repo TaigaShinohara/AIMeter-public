@@ -1726,13 +1726,6 @@ struct ProviderUsageSection: View {
                     .foregroundStyle(.primary)
                     .lineLimit(1)
                     .accessibilityAddTraits(.isHeader)
-
-                if subtitle == "未取得" {
-                    Text("未取得")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
             }
             .layoutPriority(1)
 
@@ -1827,10 +1820,6 @@ struct ProviderUsageSection: View {
                         .foregroundStyle(.secondary)
                 }
             }
-
-            Text("公式の利用率を取得できた枠はその値を表示します。設定上限からの計算値には『約』、公式残量を取得できない枠には『未取得』を表示します。")
-                .font(.caption)
-                .foregroundStyle(.secondary)
         }
         .accessibilityElement(children: .contain)
         .fixedSize(horizontal: false, vertical: true)
@@ -2190,11 +2179,6 @@ struct AIMeterCardView: View {
             .accessibilityValue(monitor.isDesktopWidgetOpen ? "表示中" : "非表示")
 
             Spacer()
-
-            Button("設定...") {
-                openSettingsWindow(openWindow: openWindow)
-            }
-            .disabled(monitor.requiresCollectionIntroduction)
 
             Button("終了") {
                 NSApplication.shared.terminate(nil)

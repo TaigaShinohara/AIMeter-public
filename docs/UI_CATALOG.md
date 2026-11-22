@@ -1,6 +1,6 @@
 # UIカタログ：AIMeter
 
-- 最終更新：2026-11-16
+- 最終更新：2026-11-22
 - アート方針：`docs/ART_DIRECTION.md` の版 1.0 に準拠
 
 ## パーツ一覧（役割順）
@@ -18,7 +18,7 @@
 | `SettingsToggle` | 折り返し対応の設定用トグル行 | `Sources/AIMeter/SettingsStyle.swift` | 使用中 |
 | `StoreSourcePickerView` | Mac App Store版での安全なフォルダ選択UI | `Sources/AIMeter/StoreSourcePickerView.swift` | 使用中 |
 | `CollectionIntroductionView` | 初回起動時の1ページ1主張オンボーディングと収集同意 | `Sources/AIMeter/CollectionIntroduction.swift` | 使用中 |
-| `OnboardingWindowDotsView` | 総ページ数を意識させない最大5点の窓ドット進捗表示 | `Sources/AIMeter/CollectionIntroduction.swift` | 使用中 |
+| `HelpView` | 検索と閉じた質問から入るヘルプ | `Sources/AIMeter/HelpView.swift` | 使用中 |
 | `WidgetContent` / `WidgetSurface` | 小・中・大ウィジェットの共通表示面 | `Sources/AIMeterWidgetUI/WidgetViews.swift` | 使用中 |
 
 ## パーツ詳細
@@ -73,15 +73,23 @@
 - アート方針との対応：macOS 標準UI、余白と面による整理。
 - 実装の場所：`Sources/AIMeter/SettingsStyle.swift`
 
-### `CollectionIntroductionView` / `OnboardingWindowDotsView`
+### `CollectionIntroductionView`
 
-- 役割：初回起動時（`requiresCollectionIntroduction`）に、1ページ1主張のオンボーディング（全14ページ：フック・悩み選択・マッチ宣言・アイデンティティ・価値3頁・3ステップ・表示モード試し操作と結果・期待・接続）と窓ドット進捗を表示し、明示的な開始操作までログ読み取りを行わない境界を守る。
-- 使う場面：`AIMeterCardView`（デスクトップ・メニューバー）および初回設定ウィンドウ。
-- 使わない場面：収集開始後の通常画面、Widget。
-- 状態：通常（2層アニメーション）／ 視差効果低減（静止・フェード代替）／ 称賛バナー表示（小・中・大）／ 戻る・スキップ（中立遷移）
-- 狙い：開いて3秒で把握できる1ページ1主張の密度で、何のアプリか・3ステップの使い方・安心な端末内集計を伝え、選んだ悩みや試し操作を初期表示設定へ反映する。
-- アート方針との対応：`controlBackgroundColor` の標準カード面、等幅数字、35%未満のみ警告色（通常は中立色）、`LiquidBallArtwork` の活用、視差効果低減・高コントラスト対応。
+- 役割：概要 → 表示選択 → 集計対象と同意の3ページで、明示開始までログを読まない境界を守る。
+- 使う場面：初回の本体・メニューバー・設定。通常利用とWidgetには出さない。
+- 状態：概要／表示の試し操作／対象選択・全オフ／戻る・設定へ・次へ。表示だけでは保存済み設定を変更しない。
+- 狙い：最初の残量までの反復説明・称賛・自動送りをなくす。標準の `ProviderUsageSection` と `UsageDisplayModePicker` を流用し、サンプルと明記する。
+- アート方針との対応：標準GroupBox、システム文字、静止したLiquidBall。新しい色や形を増やさない。
 - 実装の場所：`Sources/AIMeter/CollectionIntroduction.swift`
+
+### `HelpView`
+
+- 役割：FAQ検索を主役にし、必要な回答だけDisclosureGroupで開く。
+- 使う場面：設定の「ヘルプ & 情報」。メーターには置かない。
+- 状態：質問一覧／検索／該当なし／回答・データ取扱いの展開。
+- 狙い：以前の2種類のFAQを `HelpQuestions` に統一し、情報の食い違いと質問前の長い紹介をなくす。
+- アート方針との対応：既存のSettingsForm・SettingsSection・DisclosureGroupを使用。通常版とStore版の取得・通信・回復手順を分ける。
+- 実装の場所：`Sources/AIMeter/HelpView.swift`
 
 ### `WidgetContent` / `WidgetSurface`
 
@@ -102,3 +110,7 @@
 | パーツ名 | 廃止日 | 理由 | 代替パーツ |
 | --- | --- | --- | --- |
 | 独自ヘッダー・透明ウィンドウ背景・全面ガラス | 既存（`docs/LIQUID_GLASS.md` 記録） | 非前面時の可読性低下とOS標準UIからの逸脱を防ぐため | 標準 `Window` + `.unifiedCompact` ツールバー + `GroupBox` |
+
+## 補足の到達性
+
+一般の保存仕様、OpenAI/GCPの任意連携、キー保守、Antigravityの取得補足、Storeの隠しフォルダ操作は既存のDisclosureGroupへ整理する。操作後の失敗・未適用・保存状態は折りたたみの外に残す。既存の部品のバリエーションとして扱い、新しいトークンは追加しない。監査と比較は `INFORMATION_DESIGN.md` を参照。

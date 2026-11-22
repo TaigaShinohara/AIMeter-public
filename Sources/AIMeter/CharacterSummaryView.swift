@@ -33,18 +33,12 @@ struct CharacterSummaryContent: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
-            VStack(spacing: 4) {
-                LiquidBallView(contrast: contrast, colorScheme: colorScheme,
-                               reduceTransparency: reduceTransparency, motionEnabled: motionEnabled)
-                    .frame(width: 48, height: 54)
-
-                Text("リボ")
-                    .font(.system(size: 9, weight: .medium))
-                    .foregroundStyle(contrast == .increased ? Color.primary : Color.secondary)
-            }
-            .padding(.top, 7)
-            .help("LiquidBall（リボ）")
-            .accessibilityHidden(true)
+            LiquidBallView(contrast: contrast, colorScheme: colorScheme,
+                           reduceTransparency: reduceTransparency, motionEnabled: motionEnabled)
+                .frame(width: 48, height: 54)
+                .padding(.top, 7)
+                .help("LiquidBall（リボ）")
+                .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 5) {
                 HStack(spacing: 4) {
