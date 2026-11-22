@@ -1,238 +1,99 @@
 import SwiftUI
 
-// MARK: - Help & QA View
-struct HelpView: View {
-    var isMenuBar: Bool = false
-    var onBack: () -> Void
-
-    @State private var expandedQAIds: Set<String> = ["qa-1", "qa-2"]
-    @State private var searchText: String = ""
-
-    struct QAItem: Identifiable {
+/// One set of answers for the settings help screen and its search results.
+enum HelpQuestions {
+    struct Item: Identifiable {
         let id: String
-        let category: String
         let question: String
         let answer: String
     }
 
-    private let qaItems: [QAItem] = [
-        QAItem(
-            id: "qa-1",
-            category: "集計・仕組み",
-            question: "使用量はどのように集計されていますか？",
-            answer: "通常は、お使いの Mac 内に各 AI ツール（Cursor, Windsurf, Claude Code, Copilot, Codex, Gemini など）が保存したローカルセッションログやキャッシュデータベースを読み取り、タイムスタンプに基づいて 2時間 / 5時間 / 1日 / 7日 / 30日 ごとに合算します。この集計は Mac 内で行います。任意の OpenAI・GCP 連携を有効にすると、公式 API から取得した利用量も表示に使用します。Antigravity の公式残量は、同じ Mac の起動・ログイン済みアプリから取得します。"
-        ),
-        QAItem(
-            id: "qa-2",
-            category: "集計・仕組み",
-            question: "ブラウザ版（Web）やスマホでの会話は反映されますか？",
-            answer: "ローカルログの集計には、その Mac に保存されたデータだけが反映されます。ブラウザ版やスマホの会話を直接読み取る機能はありません。任意の OpenAI・GCP 連携を有効にした場合は、設定した組織・プロジェクトの API 利用量も表示に使用するため、Mac 以外からの API 利用分が含まれることがあります。"
-        ),
-        QAItem(
-            id: "qa-3",
-            category: "トラブルシューティング",
-            question: "使っているツールが「未検出」と表示される場合は？",
-            answer: "ポータブル版エディタや非標準のディレクトリにインストールしている場合、設定画面の「ログパス」ボタンから、ログファイル（.jsonl や state.vscdb）または保存先フォルダを直接指定できます。「検証 & 適用」を押して検証に成功すると即座に読み込まれます。"
-        ),
-        QAItem(
-            id: "qa-4",
-            category: "セキュリティ",
-            question: "コードやプロンプトが外部に送信される心配はありませんか？",
-            answer: "AIMeter は、ローカルログ内のコードやプロンプト本文を連携先 API の要求に含めません。ログの集計は Mac 内で行い、集計ファイル (~/.ai_meter_usage.json) はご自身のアカウントだけが読み書きできる権限（0600）で保存します。任意の OpenAI 連携は組織の利用量・費用 API へ、GCP 連携は gcloud のログイン情報を使って Google Cloud Monitoring へ通信します。Antigravity の残量取得は、同じ Mac のアプリとのローカル通信です。"
-        ),
-        QAItem(
-            id: "qa-cloud-credentials",
-            category: "セキュリティ",
-            question: "クラウド連携を停止したり、OpenAI キーを変更するには？",
-            answer: "設定 → サービス連携でサービスをオフにすると、そのサービスのローカルログ収集とクラウド取得を停止します。メニューバーへの表示切替は表示だけを制御します。OpenAI の保存済みキーは Keychain に残ります。旧設定の移行や、この端末の保存済みキーの削除は、連携がオフでも保守操作から行えます。キーは保存と読戻しの確認後だけ使用し、移行に失敗した場合は旧設定を残します。"
-        ),
-        QAItem(
-            id: "qa-5",
-            category: "使い方",
-            question: "表示枠（2h / 5h / 1d / 7d / 30d）の切り替えや上限変更は？",
-            answer: "通常は残り％を表示します。トークン数なども確認したい場合は、設定 → 一般の「トークン量・利用回数を表示」をオンにしてください。各サービスの情報ボタンでは、データ元・プランの補足、API換算額（参考）、取得できた枠のリセット日時を確認できます。上部の「要点 / 全枠」は表示する期間を切り替えます。各サービスの表示枠や上限値は設定から変更できます。"
-        ),
-        QAItem(
-            id: "qa-6",
-            category: "使い方",
-            question: "メニューバーに表示されるパーセントは何を表していますか？",
-            answer: "残量を算出できる枠のうち、残り割合が最も少ない枠を表示します。公式の利用率を取得できた枠はその値、設定した上限から計算する枠は「約」を付けた目安です。公式残量が必要で未取得のサービスは、逼迫順位や0%警告に含めません。"
-        ),
-        QAItem(
-            id: "qa-antigravity-quota",
-            category: "データ",
-            question: "Antigravityの残量を表示するには？",
-            answer: "設定 → サービス連携 → Antigravityを有効にし、Antigravityアプリを起動・ログインした状態で更新してください。AIMeterへの追加ログインは不要で、Antigravityが返すモデル群ごとの残り割合を表示します。トークン数からの推計ではありません。起動していない場合や残量を取得できない場合は未取得とし、2分以上古い値やリセット予定を過ぎた値は使いません。Antigravity内部のローカルAPIを使うため、アプリの更新で取得できなくなる場合があります。Geminiのカードは引き続きログ由来の推定使用量です。"
-        ),
-        QAItem(
-            id: "qa-gemini-quota",
-            category: "データ",
-            question: "Geminiの残量が「未取得」なのはなぜ？",
-            answer: "現在の収集元からはGeminiの公式残量を取得できません。ローカルログや任意のGCP連携で分かる使用量を、契約上の残り％に置き換えないため「未取得」と表示します。推定使用量は設定から表示でき、キャッシュの重み付けや文字数による推計を含む参考情報です。"
-        ),
-        QAItem(
-            id: "qa-7",
-            category: "使い方",
-            question: "デスクトップウィジェットとして画面上に常時表示できますか？",
-            answer: "メニューバーのカード下部にある「ウィジェット表示」ボタンをクリックすると、デスクトップ上にドラッグ移動可能なフローティングカードウィンドウが表示されます。"
-        ),
-        QAItem(
-            id: "qa-8",
-            category: "集計・仕組み",
-            question: "複数台の Mac を使っている場合はどうなりますか？",
-            answer: "ローカルログからの集計は各 Mac に保存されたデータが対象です。職場と自宅の Mac で作業を分担した場合、それぞれの端末のログを集計します。任意の OpenAI・GCP 連携の値は、端末別ではなく設定した組織・プロジェクトの API 利用量です。"
-        )
+    static let items: [Item] = [
+        Item(id: "remaining", question: "「約」「未取得」は何を表していますか？",
+             answer: "「約」は設定した上限からの残量の目安です。公式残量を取得できない枠は「未取得」とし、0%や逼迫順位には含めません。Geminiのログからは公式残量を算出しません。"),
+        Item(id: "amounts", question: "使用量やリセット日時も見たい",
+             answer: "使用量は「一般 → トークン量・利用回数を表示」で切り替えます。各サービスの情報ボタンで、データ元・参考額・取得できたリセット日時を確認できます。期間は「要点表示 / 全枠表示」、上限は「制限と予算」で変更します。"),
+        Item(id: "collection", question: "何を集計していますか？",
+             answer: collectionAnswer),
+        Item(id: "other-devices", question: "ブラウザやスマホ、別のMacの利用も含みますか？",
+             answer: otherDevicesAnswer),
+        Item(id: "not-detected", question: "ツールが「未検出」になる場合は？",
+             answer: pathAnswer),
+        Item(id: "menu-bar", question: "メニューバーにはどの残量が表示されますか？",
+             answer: "残量を算出できる枠のうち、残り割合が最も少ない枠を表示します。「一般 → メニューバー」で表示モードや優先する期間を変更できます。"),
+        Item(id: "stop", question: "収集を止める・OpenAIキーを変更するには？",
+             answer: "「サービス連携」でサービスをオフにすると、ログ収集とクラウド取得を停止します。メニューバー表示の切替は表示だけを変えます。OpenAIのキーはKeychainに残り、同じ画面の「保存済みキーの保守」で削除できます。新しいキーは「OpenAIの組織API」で入力し、保存してください。"),
+        Item(id: "widget", question: "デスクトップに常時表示するには？",
+             answer: "メニューバーの「ウィジェットを表示」で移動可能なカードを開けます。macOSのウィジェットは、デスクトップのウィジェット編集から追加します。反映時刻はmacOSが調整するため、本体の更新直後に変わらない場合があります。"),
+        Item(id: "antigravity", question: "Antigravityの公式残量を表示するには？",
+             answer: antigravityAnswer)
     ]
 
-    private var filteredQAs: [QAItem] {
-        if searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return qaItems
-        }
-        return qaItems.filter {
-            $0.question.localizedCaseInsensitiveContains(searchText) ||
-            $0.answer.localizedCaseInsensitiveContains(searchText) ||
-            $0.category.localizedCaseInsensitiveContains(searchText)
+    static func matching(_ query: String) -> [Item] {
+        let query = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return items }
+        return items.filter {
+            $0.question.localizedCaseInsensitiveContains(query) || $0.answer.localizedCaseInsensitiveContains(query)
         }
     }
+
+    #if AIMETER_APP_STORE
+    private static let collectionAnswer = "サービスごとに許可した場所のローカルログを、このMac内で期間ごとに集計します。会話本文は保存・送信しません。任意のOpenAI連携では組織のAPI利用量・費用も使います。GCP連携には対応していません。"
+    private static let otherDevicesAnswer = "ローカル集計は、このMacで読み取りを許可したログだけが対象です。ブラウザやスマホの会話を直接読む機能はありません。任意のOpenAI連携には、設定した組織のMac以外からのAPI利用分が含まれることがあります。"
+    private static let pathAnswer = "「サービス連携」でサービスを選び、「読み取り先」でフォルダまたはファイルを選択してから更新してください。保存済みの選択を確認できない場合は、再選択します。"
+    private static let antigravityAnswer = "Mac App Store版はAntigravityの公式残量取得に対応していません。Geminiの読み取り先でAntigravityのログを許可した場合も、集計するのは推定使用量です。"
+    #else
+    private static let collectionAnswer = "各AIツールがこのMacに保存したログやデータベースを、期間ごとに集計します。会話本文は保存・送信しません。任意のOpenAI・GCP連携では、組織・プロジェクトのAPI利用量も使います。"
+    private static let otherDevicesAnswer = "ローカル集計は、このMacに保存されたログだけが対象です。ブラウザやスマホの会話を直接読む機能はありません。任意のOpenAI・GCP連携には、設定した組織・プロジェクトのMac以外からのAPI利用分が含まれることがあります。"
+    private static let pathAnswer = "「サービス連携」でサービスを選び、「ローカルログパス」からログファイルまたはフォルダを指定して「検証 & 適用」を押します。シンボリックリンクではなく、実体のパスを指定してください。"
+    private static let antigravityAnswer = "「サービス連携 → Antigravity」を有効にし、Antigravityを起動・ログインした状態で更新します。モデル群ごとの公式残量を取得し、2分以上古い値やリセット予定を過ぎた値は使いません。Geminiのログ由来の推定使用量とは別の情報です。"
+    #endif
+}
+
+struct HelpView: View {
+    @State private var searchText = ""
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            // Top Bar
-            HStack(spacing: 8) {
-                if !isMenuBar {
-                    Color.clear
-                        .frame(width: 52, height: 16)
-                        .accessibilityHidden(true)
-                }
-
-                Button {
-                    onBack()
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "chevron.left")
-                        Text("戻る")
-                    }
-                    .font(.system(size: 11.5, weight: .semibold))
-                }
-                .buttonStyle(NativeGlassButtonStyle())
-
-                Text("ヘルプ & よくある質問")
-                    .font(.system(size: 14, weight: .bold, design: .rounded))
-
-                Spacer()
-
-                LiquidGlassBadge(text: "AIMeter", icon: "sparkles", tint: .accentColor)
-            }
-
-            // About AIMeter Card
-            HStack(alignment: .top, spacing: 10) {
-                LiquidGlassIconOrb(
-                    systemName: "gauge.with.needle.fill",
-                    accent: .accentColor,
-                    size: 28,
-                    iconSize: 14
-                )
-
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("AIMeter について")
-                        .font(.system(size: 12.5, weight: .bold))
-
-                    Text("Mac 内で利用中の各 AI ツール（Cursor, Windsurf, Claude Code, GitHub Copilot, Gemini, OpenAI 等）のローカルログを直接解析し、リアルタイムの使用量・残量メーターとAPI換算コストを可視化するメニューバー＆ウィジェットアプリです。")
-                        .font(.system(size: 11.5))
-                        .foregroundStyle(.secondary)
-                        .lineSpacing(2.5)
-                }
-            }
-            .padding(11)
-            .background(
-                FrostedGlassCardBackground(cornerRadius: 12, accentTint: .accentColor)
-            )
-
-            // Search Filter
-            Link("お問い合わせ: \(SupportContact.email)", destination: SupportContact.mailURL)
-                .font(.caption)
-            HStack(spacing: 7) {
-                Image(systemName: "magnifyingglass")
-                    .font(.system(size: 12))
-                    .foregroundStyle(.secondary)
-                TextField("質問やキーワードを検索...", text: $searchText)
+        SettingsForm {
+            SettingsSection("よくある質問") {
+                TextField("質問を検索", text: $searchText)
                     .textFieldStyle(.roundedBorder)
-                    .font(.system(size: 12))
-
-                if !searchText.isEmpty {
-                    Button {
-                        searchText = ""
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 12))
-                            .foregroundStyle(.secondary)
-                    }
-                    .buttonStyle(NativeGlassButtonStyle())
-                    .controlSize(.small)
-                    .accessibilityLabel("検索をクリア")
+                    .accessibilityLabel("よくある質問を検索")
+                let items = HelpQuestions.matching(searchText)
+                if items.isEmpty {
+                    Text("該当する質問がありません。別の言葉で検索してください。")
+                        .foregroundStyle(.secondary)
                 }
-            }
-            .controlSize(.small)
-
-            // Q&A List
-            ScrollView {
-                VStack(spacing: 8) {
-                    if filteredQAs.isEmpty {
-                        Text("該当する質問が見つかりませんでした。")
-                            .font(.system(size: 12))
+                ForEach(items) { item in
+                    DisclosureGroup(item.question) {
+                        Text(item.answer)
                             .foregroundStyle(.secondary)
-                            .frame(maxWidth: .infinity, alignment: .center)
-                            .padding(.vertical, 24)
-                    } else {
-                        ForEach(filteredQAs) { item in
-                            qaRowView(item: item)
-                        }
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.vertical, 6)
                     }
                 }
-                .padding(.trailing, 2)
             }
-            .frame(maxHeight: 340)
-        }
-        .liquidGlassGroup()
-    }
 
-    @ViewBuilder
-    private func qaRowView(item: QAItem) -> some View {
-        DisclosureGroup(isExpanded: Binding(
-            get: { expandedQAIds.contains(item.id) },
-            set: { expanded in
-                if expanded { expandedQAIds.insert(item.id) }
-                else { expandedQAIds.remove(item.id) }
+            SettingsSection("データと通信") {
+                DisclosureGroup("データの扱いを確認") {
+                    #if AIMETER_APP_STORE
+                    Text("許可した場所のローカルログをこのMac内で集計します。任意のOpenAI連携は公式APIへ通信します。GCPとAntigravityの残量連携には対応していません。アップデートはMac App Storeから行います。")
+                    #else
+                    Text("ローカルログはMac内で集計します。任意のOpenAI・GCP連携は公式APIへ、Antigravity連携は同じMacの正規アプリへ通信します。アプリの更新はボタンを押したときにGitHubへ確認・ダウンロードします。")
+                    #endif
+                    Text("会話本文は集計ファイルに保存せず、連携先への要求にも含めません。トークン情報がない場合は、文字数を端末内で一時的に使うことがあります。")
+                }
+                .foregroundStyle(.secondary)
             }
-        )) {
-            HStack(alignment: .top, spacing: 7) {
-                Text("A.")
-                    .font(.system(size: 13, weight: .bold, design: .rounded))
+
+            SettingsSection("お問い合わせ") {
+                Link(SupportContact.email, destination: SupportContact.mailURL)
+                Text("利用ログ・集計ファイル・APIキーは添付しないでください。")
+                    .font(.caption)
                     .foregroundStyle(.secondary)
-
-                Text(item.answer)
-                    .font(.system(size: 13))
-                    .foregroundStyle(.secondary)
-                    .lineSpacing(3)
-                    .multilineTextAlignment(.leading)
-            }
-            .padding(.top, 2)
-        } label: {
-            HStack(alignment: .top, spacing: 7) {
-                Text("Q.")
-                    .font(.system(size: 13.5, weight: .bold, design: .rounded))
-                    .foregroundStyle(.tint)
-
-                Text(item.question)
-                    .font(.system(size: 13.5, weight: .semibold))
-                    .foregroundStyle(.primary)
-                    .multilineTextAlignment(.leading)
+                Link("脆弱性を非公開で報告", destination: URL(string: "https://github.com/TaigaShinohara/AIMeter-public/security/advisories/new")!)
             }
         }
-        .disclosureGroupStyle(.automatic)
-        .padding(11)
-        .background(
-            FrostedGlassCardBackground(cornerRadius: 11)
-        )
+        .navigationTitle("ヘルプ & 情報")
     }
 }

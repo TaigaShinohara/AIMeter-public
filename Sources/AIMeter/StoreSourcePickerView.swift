@@ -29,10 +29,12 @@ struct StoreSourcePickerView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
-            Text("隠しフォルダは、選択画面で Command + Shift + . を押すと表示できます。")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
+            DisclosureGroup("隠しフォルダを選ぶには") {
+                Text("選択画面で Command + Shift + . を押すと表示できます。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             Text("ログには会話内容が含まれる場合があります。")
                 .font(.caption)
                 .fixedSize(horizontal: false, vertical: true)

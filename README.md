@@ -23,7 +23,7 @@ Apple Siliconの合成データによるテストと、実際の配布候補の�
 1. [GitHub Releases](https://github.com/TaigaShinohara/AIMeter-public/releases) を開き、利用する版の「動作確認の範囲」と既知の制限を確認します。`Pre-release` 表示のある版は開発版です。
 2. **Assets** の `AIMeter-<version>-macos-universal.zip` をダウンロードして展開します。GitHubが生成する「Source code」はアプリ本体ではありません。
 3. `AIMeter.app` をアプリケーションフォルダへ移動し、Finderから開きます。
-4. 初回の説明を読み、集計するCodex・Geminiを選んで「選んだサービスで使い始める」を押します。開始するまではログを読み取りません。他のサービスは「設定 → サービス連携」から追加でき、API連携は任意です。既存利用者の更新では、これまでの設定を引き継ぎます。
+4. 概要を読み、表示モードと集計するCodex・Geminiを選んで「使い始める」を押します。開始するまではログを読み取りません。他のサービスは「設定 → サービス連携」から追加でき、API連携は任意です。既存利用者の更新では、これまでの設定を引き継ぎます。
 5. macOSのウィジェット編集でAIMeterを追加します。小・中・大に対応し、本体の「今すぐ更新」後も表示の反映時刻はmacOSが調整します。
 
 導入時の確認や更新方法は [配布・導入ガイド](DISTRIBUTION_GUIDE.md) にあります。

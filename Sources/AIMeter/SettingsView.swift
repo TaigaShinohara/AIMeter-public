@@ -61,7 +61,7 @@ struct SettingsView: View {
             case .limits:
                 LimitsSettingsView(monitor: monitor, selectedServiceId: $selectedServiceId)
             case .help:
-                HelpSettingsView()
+                HelpView()
             }
         }
         .frame(minWidth: 860, minHeight: 560)
@@ -75,15 +75,6 @@ private struct GeneralSettingsView: View {
 
     var body: some View {
         SettingsForm {
-            #if AIMETER_APP_STORE
-            SettingsSection("アプリのアップデート") {
-                Text("アップデートはMac App Storeから行ってください。")
-                    .foregroundStyle(.secondary)
-            }
-            #else
-            AppUpdateSettingsSection()
-            #endif
-
             SettingsSection("起動とウィンドウ") {
                 SettingsToggle("Mac ログイン時に自動起動", isOn: Binding(
                     get: { launchAtLogin.isEnabled },
@@ -100,9 +91,11 @@ private struct GeneralSettingsView: View {
 
             SettingsSection("利用状況の表示") {
                 SettingsToggle("トークン量・利用回数を表示", isOn: $monitor.showUsageAmounts)
-                Text("通常は残り％のみ表示します。オフではmacOSウィジェットの共有ファイルにも使用量・上限の数値を保存しません。本体の集計は保持します。『約』の残り％は設定上限からの目安です。")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                DisclosureGroup("数値表示と保存について") {
+                    Text("通常は残り％のみ表示します。オフではmacOSウィジェットの共有ファイルにも使用量・上限の数値を保存しません。本体の集計は保持します。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
                 if monitor.widgetAmountChangePending, let error = monitor.widgetSharingError {
                     Text(error).font(.caption).foregroundStyle(.orange)
                 }
@@ -171,6 +164,15 @@ private struct GeneralSettingsView: View {
                     .disabled(monitor.isRefreshing)
                 }
             }
+
+            #if AIMETER_APP_STORE
+            SettingsSection("アプリのアップデート") {
+                Text("アップデートはMac App Storeから行ってください。")
+                    .foregroundStyle(.secondary)
+            }
+            #else
+            AppUpdateSettingsSection()
+            #endif
         }
         .navigationTitle("一般")
     }
@@ -183,16 +185,12 @@ private struct AppUpdateSettingsSection: View {
 
     var body: some View {
         SettingsSection("アプリのアップデート") {
-            SettingsLabeledContent("現在のバージョン") {
-                Text(updater.currentVersion)
-                    .foregroundStyle(.secondary)
-            }
-            SettingsLabeledContent("現在の種類") {
-                Text(updater.currentChannelLabel)
+            SettingsLabeledContent("バージョン") {
+                Text("\(updater.currentVersion) · \(updater.currentChannelLabel)")
                     .foregroundStyle(.secondary)
             }
             HStack {
-                Text("公開済みの最新安定版をインストールします。更新後にAIMeterが再起動します。")
+                Text("更新後にAIMeterが再起動します。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -200,7 +198,7 @@ private struct AppUpdateSettingsSection: View {
                 Button("最新版に更新", systemImage: "arrow.down.circle") {
                     Task { await updater.update(to: .stable) }
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.bordered)
                 .disabled(updater.isBusy)
             }
 
@@ -482,66 +480,72 @@ private struct ServicesSettingsView: View {
             }
             #endif
 
-            SettingsSection("クラウド組織連携 (任意)") {
-                LabeledContent("OpenAI Admin Key") {
-                    SecureField("OpenAI Admin Key", text: $monitor.openaiAdminKeyDraft)
-                        .labelsHidden()
-                        .textFieldStyle(.roundedBorder)
-                        .accessibilityLabel("OpenAI Admin Key")
-                }
-                .disabled(!monitor.showOpenAISection)
-                HStack {
-                    Button("キーを保存") {
-                        monitor.saveOpenAICredential()
+            SettingsSection("クラウド連携（任意）") {
+                DisclosureGroup("OpenAIの組織API") {
+                    LabeledContent("OpenAI Admin Key") {
+                        SecureField("OpenAI Admin Key", text: $monitor.openaiAdminKeyDraft)
+                            .labelsHidden()
+                            .textFieldStyle(.roundedBorder)
+                            .accessibilityLabel("OpenAI Admin Key")
                     }
-                    .disabled(monitor.openaiAdminKeyDraft.isEmpty)
-                    Button("保存済みキーを読み直す") { monitor.retryOpenAICredentialLoad() }
+                    .disabled(!monitor.showOpenAISection)
+                    HStack {
+                        Button("キーを保存") {
+                            monitor.saveOpenAICredential()
+                        }
+                        .disabled(monitor.openaiAdminKeyDraft.isEmpty)
+                        Button("保存済みキーを読み直す") { monitor.retryOpenAICredentialLoad() }
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(!monitor.showOpenAISection)
+                    Text("入力後に保存してください。保存を確認できたキーだけを同期に使用します。キーの値は画面に表示しません。")
+                        .font(.caption).foregroundStyle(.secondary)
+                    Text("クラウド組織全体のAPI利用量を同期する場合のみ設定してください。ローカルセッションの集計には不要です。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
-                .buttonStyle(.bordered)
-                .disabled(!monitor.showOpenAISection)
                 if let error = monitor.openaiCredentialError {
                     Text(error).font(.caption).foregroundStyle(.red)
                 }
-                Text("入力後に保存してください。保存を確認できたキーだけを同期に使用します。キーの値は画面に表示しません。")
-                    .font(.caption).foregroundStyle(.secondary)
-                Text("クラウド組織全体のAPI利用量を同期する場合のみ設定してください。ローカルセッションの集計には不要です。")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
             }
 
-            SettingsSection("保存済みキーの保守") {
-                #if AIMETER_APP_STORE
-                Text("連携をオフにしたまま、このアプリに保存したキーを削除できます。旧版のキーは引き継ぎません。")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                #else
-                Text("連携をオフにしたまま操作できます。旧設定を安全に移行するか、この端末の保存済みキーを削除します。これらの操作でAPI照会は開始しません。")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                #endif
-                HStack {
-                    #if !AIMETER_APP_STORE
-                    Button("旧設定を移行") { monitor.migrateLegacyOpenAICredential() }
+            SettingsSection("キーの管理") {
+                DisclosureGroup("保存済みキーの保守") {
+                    #if AIMETER_APP_STORE
+                    Text("連携をオフにしたまま、このアプリに保存したキーを削除できます。旧版のキーは引き継ぎません。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    #else
+                    Text("連携をオフにしたまま操作できます。旧設定を安全に移行するか、この端末の保存済みキーを削除します。これらの操作でAPI照会は開始しません。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                     #endif
-                    Button("この端末の保存済みキーを削除", role: .destructive) {
-                        confirmStoredKeyDeletion = true
+                    HStack {
+                        #if !AIMETER_APP_STORE
+                        Button("旧設定を移行") { monitor.migrateLegacyOpenAICredential() }
+                        #endif
+                        Button("この端末の保存済みキーを削除", role: .destructive) {
+                            confirmStoredKeyDeletion = true
+                        }
+                    }
+                    .buttonStyle(.bordered)
+                    .confirmationDialog("この端末の保存済みキーを削除しますか？",
+                                        isPresented: $confirmStoredKeyDeletion,
+                                        titleVisibility: .visible) {
+                        Button("保存済みキーを削除", role: .destructive) {
+                            monitor.deleteStoredOpenAICredential()
+                        }
+                        Button("キャンセル", role: .cancel) {}
+                    } message: {
+                        Text("Keychainと旧設定に保存されたOpenAIキーを削除します。再び利用するにはキーの入力と保存が必要です。")
                     }
                 }
-                .buttonStyle(.bordered)
-                .confirmationDialog("この端末の保存済みキーを削除しますか？",
-                                    isPresented: $confirmStoredKeyDeletion,
-                                    titleVisibility: .visible) {
-                    Button("保存済みキーを削除", role: .destructive) {
-                        monitor.deleteStoredOpenAICredential()
-                    }
-                    Button("キャンセル", role: .cancel) {}
-                } message: {
-                    Text("Keychainと旧設定に保存されたOpenAIキーを削除します。再び利用するにはキーの入力と保存が必要です。")
+                if monitor.openaiCredentialMaintenanceStatus != .unverified {
+                    Text(monitor.openaiCredentialMaintenanceStatus.message)
+                        .font(.caption)
+                        .foregroundStyle(monitor.openaiCredentialMaintenanceStatus.isFailure ? Color.orange : Color.secondary)
+                        .accessibilityIdentifier("openai-credential-maintenance-status")
                 }
-                Text(monitor.openaiCredentialMaintenanceStatus.message)
-                    .font(.caption)
-                    .foregroundStyle(monitor.openaiCredentialMaintenanceStatus.isFailure ? Color.orange : Color.secondary)
-                    .accessibilityIdentifier("openai-credential-maintenance-status")
             }
         }
         .onAppear { monitor.loadOpenAICredentialIfEnabled() }
@@ -570,14 +574,16 @@ private struct ServicesSettingsView: View {
                     .font(.caption).foregroundStyle(.secondary)
             }
             #else
-            SettingsSection("GCPプロジェクト連携 (任意)") {
-                SettingsLabeledContent("GCP Project ID") {
-                    TextField("GCP Project ID", text: $monitor.gcpProjectId)
-                        .labelsHidden()
+            SettingsSection("クラウド連携（任意）") {
+                DisclosureGroup("GCPプロジェクト") {
+                    SettingsLabeledContent("GCP Project ID") {
+                        TextField("GCP Project ID", text: $monitor.gcpProjectId)
+                            .labelsHidden()
+                    }
+                    Text("Cloud Monitoring から Gemini 利用量を同期する場合のみ入力してください。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
-                Text("Cloud Monitoring から Gemini 利用量を同期する場合のみ入力してください。")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
             }
             #endif
         }
@@ -595,10 +601,12 @@ private struct ServicesSettingsView: View {
                 Text("Mac App Store版ではAntigravityの残量取得に対応していません。")
                     .font(.caption).foregroundStyle(.secondary)
                 #else
-                Text("Antigravityを起動してログインした状態で更新してください。AIMeterへの追加ログインは不要です。取得できたモデル群ごとの残り％とリセット予定を表示します。")
+                Text("Antigravityを起動・ログインした状態で更新してください。")
                     .font(.caption).foregroundStyle(.secondary)
-                Text("Geminiのローカル推定使用量とは別の情報です。Antigravityの残りトークン数は推計しません。アプリの終了や更新失敗時は未取得になります。")
-                    .font(.caption).foregroundStyle(.secondary)
+                DisclosureGroup("取得する残量について") {
+                    Text("モデル群ごとの公式残量とリセット予定を表示します。Geminiの推定使用量とは別の情報です。終了や取得失敗時は未取得になります。")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
                 Text(monitor.antigravityStatus).font(.caption)
                 Button("今すぐ更新") { Task { await monitor.refresh() } }
                     .disabled(monitor.isRefreshing || !monitor.showAntigravitySection)
@@ -962,90 +970,6 @@ private struct LimitsSettingsView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-        }
-    }
-}
-
-// MARK: - Help & About Tab
-private struct HelpSettingsView: View {
-    @State private var searchText: String = ""
-
-    var body: some View {
-        SettingsForm {
-            Section {
-                HStack(spacing: 14) {
-                    Image(systemName: "gauge.with.needle.fill")
-                        .font(.system(size: 36))
-                        .foregroundStyle(Color.accentColor)
-
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text("AIMeter")
-                            .font(.title2.weight(.bold))
-                        Text("ローカル完結型 AI 利用量・残量メーター")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
-                    Spacer()
-                }
-            }
-
-            SettingsSection("データと通信の扱い") {
-                HStack(alignment: .top, spacing: 12) {
-                    Image(systemName: "lock.shield.fill")
-                        .font(.title3)
-                        .foregroundStyle(.green)
-
-                    #if AIMETER_APP_STORE
-                    Text("ローカルログは、サービスごとに許可した場所だけを読み取り、このMacの中で集計します。許可していないサービスは未取得として表示します。任意のOpenAI連携を有効にすると、利用量と費用を照会します。GCPとAntigravityの残量連携には対応していません。アップデートはMac App Storeから行います。")
-                        .font(.body)
-                        .foregroundStyle(.secondary)
-                    #else
-                    Text("ローカルログはMac内で集計します。任意のOpenAI・GCP連携を有効にすると公式サービスへ利用量・費用を照会します。Antigravity連携は同じMac内の正規アプリと通信します。アプリのアップデートはボタンを押したときにGitHubへ確認・ダウンロードします。コードやプロンプト本文をこれらの要求へ含めません。")
-                        .font(.body)
-                        .foregroundStyle(.secondary)
-                    #endif
-                    Spacer()
-                }
-            }
-
-            SettingsSection("お問い合わせ") {
-                Link(SupportContact.email, destination: SupportContact.mailURL)
-                Text("利用ログ・集計ファイル・APIキーは添付しないでください。脆弱性はGitHubの非公開報告窓口も利用できます。")
-                    .font(.caption).foregroundStyle(.secondary)
-            }
-
-            SettingsSection("よくある質問 (Q&A)") {
-                TextField("Q&Aを検索...", text: $searchText)
-                    .textFieldStyle(.roundedBorder)
-
-                qaList
-            }
-        }
-        .navigationTitle("ヘルプ & 情報")
-    }
-
-    @ViewBuilder
-    private var qaList: some View {
-        let items = [
-            ("使用量はどのように集計されていますか？", "お使いの Mac 内に各 AI ツール（Cursor, Windsurf, Claude Code, Copilot, Codex, Gemini など）が保存しているローカルセッションログやキャッシュデータベースを安全に直接読み取り、タイムスタンプに基づいて 2時間 / 5時間 / 1日 / 7日 / 30日 ごとに自動合算しています。"),
-            ("ブラウザ版やスマホでの会話は反映されますか？", "反映されません。Mac ローカル内のログのみを集計対象としているため、その Mac 上のエディタやターミナルで作業した分のみが反映されます。組織全体の集計を行いたい場合は設定から OpenAI Admin Key や GCP Project ID を登録してください。"),
-            ("使っているツールが「未検出」と表示される場合は？", "ポータブル版エディタや非標準のディレクトリにインストールしている場合、「サービス連携」タブからログファイルまたはフォルダを直接指定して「適用」を押してください。"),
-            ("メニューバーのパーセントは何を表していますか？", "各サービスの「現在もっとも逼迫している（残量が少ない）制限枠の残りパーセント」を表しています。残量が 15% 未満になると ⚠️ マークで警告します。")
-        ]
-
-        let filtered = items.filter {
-            searchText.isEmpty || $0.0.localizedCaseInsensitiveContains(searchText) || $0.1.localizedCaseInsensitiveContains(searchText)
-        }
-
-        ForEach(filtered, id: \.0) { item in
-            DisclosureGroup(item.0) {
-                Text(item.1)
-                    .font(.body)
-                    .foregroundStyle(.secondary)
-                    .padding(.vertical, 6)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .padding(.vertical, 2)
         }
     }
 }
