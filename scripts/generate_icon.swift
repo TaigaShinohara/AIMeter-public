@@ -1,5 +1,12 @@
 import AppKit
 
+// NOTE (2026-11-24): The official app icon is now the raster artwork adopted
+// on 2026-11-24 (Ribo / LiquidBall with a smooth gauge arc and "METER"),
+// stored in scripts/AppIcon.iconset and both AppIcon.icns files. This script
+// still draws the PREVIOUS design (gauge arc + "AI"); do not rerun it unless
+// the icon is intentionally being redesigned, or it will overwrite the
+// adopted iconset.
+
 func generateIcon() {
     let size: CGFloat = 1024
     let image = NSImage(size: NSSize(width: size, height: size))
