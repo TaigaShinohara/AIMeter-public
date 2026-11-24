@@ -22,6 +22,7 @@ let package = Package(
     ],
     products: [
         .executable(name: "AIMeter", targets: ["AIMeter"]),
+        .executable(name: "AIMeterCLI", targets: ["AIMeterCLI"]),
         .library(name: "AIMeterCore", targets: ["AIMeterCore"]),
         .library(name: "AIMeterWidgetUI", targets: ["AIMeterWidgetUI"]),
         .executable(name: "AIMeterWidgetQAHost", targets: ["AIMeterWidgetQAHost"]),
@@ -72,10 +73,25 @@ let package = Package(
                 ])
             ]
         ),
+        .target(
+            name: "AIMeterCLICore",
+            dependencies: ["AIMeterCore"],
+            path: "Sources/AIMeterCLICore"
+        ),
+        .executableTarget(
+            name: "AIMeterCLI",
+            dependencies: ["AIMeterCLICore", "AIMeterCore"],
+            path: "Sources/AIMeterCLI"
+        ),
         .testTarget(
             name: "AIMeterTests",
             dependencies: ["AIMeter", "AIMeterCore"],
             path: "Tests/AIMeterTests"
+        ),
+        .testTarget(
+            name: "AIMeterCLITests",
+            dependencies: ["AIMeterCLICore", "AIMeterCore"],
+            path: "Tests/AIMeterCLITests"
         ),
         .testTarget(
             name: "AIMeterWidgetUITests",
