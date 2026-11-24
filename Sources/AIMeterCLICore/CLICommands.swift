@@ -13,10 +13,10 @@ public struct CLICommandResult {
     }
 }
 
-/// Read-only access to the direct (GitHub) distribution's persisted state.
-/// Every command is side-effect free: it reads the shared files through
-/// AIMeterCore and never writes, never touches the Keychain, and never
-/// starts the app.
+/// Access to the direct (GitHub) distribution's persisted state, shared by
+/// the read commands in this file and the write / verify commands in
+/// CLIWriteCommands.swift. The read commands here are side-effect free;
+/// nothing in the CLI ever touches the Keychain or starts the app.
 public struct CLIContext {
     public let environment: CLIEnvironment
 

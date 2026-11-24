@@ -8,18 +8,21 @@ public enum CLIHelp {
     共通フラグ:
       --json            JSON で出力する（既定）
       --human           人間向けの整形で出力する（--json と併用不可）
-      --timeout <秒>    処理の上限秒数を受け付ける（読み取りはローカルで即時に終わるため、検証のみ）
+      --timeout <秒>    処理の上限秒数を受け付ける（処理はローカルで即時に終わるため、検証のみ）
       --data-dir <パス>  データファイルの基準ディレクトリ（既定: ホーム直下。環境変数 AIMETER_CLI_DATA_DIR でも指定可）
       --help            このヘルプを表示する
-    未対応フラグ:
-      --dry-run / --yes / --idempotency-key は書き込み系コマンド用です。
-      この CLI のコマンドはすべて読み取り専用のため、指定すると unsupported_flag エラー（終了コード 1）になります。
+    書き込み系フラグ（update コマンドのみ対応）:
+      --dry-run               実際には変えず、何がどう変わるかだけを返す
+      --idempotency-key <キー> 同じキーの再実行では二重に処理せず、最初の結果を返す
+      --yes                   受け付ける（update は破壊的操作ではないため必須ではない）
+      読み取りコマンド（status / list / get / history / doctor / verify）で指定すると
+      unsupported_flag エラー（終了コード 1）になります。
     終了コード: 0 成功 / 1 入力誤り / 2 アプリ側失敗 / 3 権限不足 / 4 対象なし
     """
 
     public static var topLevel: String {
         """
-        AIMeterCLI — AIMeter の読み取り専用 CLI（GitHub 配布版が対象）
+        AIMeterCLI — AIMeter のエージェント向け CLI（GitHub 配布版が対象）
 
         使い方: AIMeterCLI <コマンド> [引数] [フラグ]
 
@@ -29,6 +32,9 @@ public enum CLIHelp {
           get <ID>   1 サービスの詳細を表示する
           history    最終更新の状態を表示する（実行履歴は永続化されていない）
           doctor     前提条件（ファイル・設定・資格情報の有無）を一覧で点検する
+          update service <ID> --enabled|--disabled
+                     連携サービスの有効 / 無効を切り替える（設定への書き込み）
+          verify     データ整合性と前提条件を自己点検し、合格 / 不合格で返す
 
         \(commonFlags)
 
@@ -36,7 +42,8 @@ public enum CLIHelp {
           AIMeterCLI status
           AIMeterCLI list --json
           AIMeterCLI get openai
-          AIMeterCLI doctor --human
+          AIMeterCLI update service gemini --disabled --dry-run
+          AIMeterCLI verify
         """
     }
 
@@ -117,6 +124,49 @@ public enum CLIHelp {
             \(commonFlags)
 
             例: AIMeterCLI doctor --human
+            """
+        case .update:
+            return """
+            AIMeterCLI update service <サービスID> --enabled|--disabled — 連携サービスの有効 / 無効
+
+            使い方: AIMeterCLI update service <サービスID> (--enabled | --disabled) [フラグ]
+            必須引数: service <サービスID>  list で得られる安定 ID（例: openai, gemini, claude）
+
+            アプリと同じ保存先（GitHub 配布版の設定ドメインとカスタムサービス
+            設定 JSON）に書き込む。既にその状態のサービスへの実行は成功として
+            現状を返す（冪等）。アプリ実行中の場合は、アプリ側の設定読み取り・
+            再起動のタイミングで反映される。
+            存在しない ID は not_found（終了コード 4）になる。
+
+            対応フラグ:
+              --dry-run               実際には変えず、変更前後の状態だけを返す
+              --idempotency-key <キー> 同じキーの再実行は最初の結果を返し、二重に処理しない。
+                                      別の変更に使ったキーを再利用すると idempotency_conflict（終了コード 1）
+              --yes                   受け付ける（この操作は破壊的ではないため必須ではない）
+
+            \(commonFlags)
+
+            例:
+              AIMeterCLI update service gemini --disabled --dry-run
+              AIMeterCLI update service openai --enabled --idempotency-key setting-2026-001
+            """
+        case .verify:
+            return """
+            AIMeterCLI verify — データ整合性と前提条件の自己点検
+
+            使い方: AIMeterCLI verify [フラグ]
+            引数: なし
+
+            収集スナップショットのデコード可否、ウィジェット共有ファイルの
+            スキーマ版数、カスタムサービス設定の整合（デコード・ID の重複と
+            衝突）、設定値の形式、サービス ID の一意性を点検し、項目ごとに
+            pass / fail / skipped で返す。読み取り専用で、状態は変えない。
+            合格は終了コード 0、不合格は verification_failed（終了コード 2）で、
+            理由と直し方は error.details の checks に項目ごとに返る。
+
+            \(commonFlags)
+
+            例: AIMeterCLI verify
             """
         }
     }
