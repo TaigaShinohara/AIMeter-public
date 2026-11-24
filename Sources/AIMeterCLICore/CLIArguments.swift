@@ -6,6 +6,17 @@ public enum CLICommand: String, CaseIterable, Sendable {
     case get
     case history
     case doctor
+    case update
+    case verify
+
+    /// Commands that never change state. Write-oriented common flags are
+    /// rejected explicitly for these instead of being silently ignored.
+    public var isReadOnly: Bool {
+        switch self {
+        case .update: return false
+        case .status, .list, .get, .history, .doctor, .verify: return true
+        }
+    }
 }
 
 public enum CLIOutputFormat: String, Equatable, Sendable {
@@ -16,8 +27,8 @@ public enum CLIOutputFormat: String, Equatable, Sendable {
 /// Parsed command line. Malformed input throws `CLIError` (exit 1).
 /// Write-oriented common flags (`--dry-run`, `--yes`, `--idempotency-key`)
 /// are collected instead of thrown, so `--help` can still answer first; the
-/// engine rejects them explicitly for these read-only commands rather than
-/// silently ignoring them.
+/// engine rejects them explicitly for read-only commands rather than
+/// silently ignoring them. Only `update` accepts them.
 public struct CLIArguments: Equatable {
     public var command: CLICommand?
     public var commandName: String?
@@ -27,6 +38,12 @@ public struct CLIArguments: Equatable {
     public var dataDirectoryOverride: String?
     public var timeoutSeconds: Double?
     public var unsupportedFlags: [String] = []
+    public var dryRun = false
+    public var yes = false
+    public var idempotencyKey: String?
+    /// Target state for `update service`: `--enabled` (true) or
+    /// `--disabled` (false). Nil when neither was given.
+    public var enabledState: Bool?
 
     public static func parse(_ arguments: [String]) throws -> CLIArguments {
         var result = CLIArguments()
@@ -52,11 +69,21 @@ public struct CLIArguments: Equatable {
                 sawJSON = true
             case "--human":
                 sawHuman = true
-            case "--dry-run", "--yes":
+            case "--dry-run":
+                result.dryRun = true
+                result.unsupportedFlags.append(token)
+            case "--yes":
+                result.yes = true
                 result.unsupportedFlags.append(token)
             case "--idempotency-key":
-                _ = try value(after: token)
+                result.idempotencyKey = try value(after: token)
                 result.unsupportedFlags.append(token)
+            case "--enabled", "--disabled":
+                let target = token == "--enabled"
+                if let existing = result.enabledState, existing != target {
+                    throw CLIError.invalidArgument("--enabled と --disabled は同時に指定できません。")
+                }
+                result.enabledState = target
             case "--timeout":
                 let raw = try value(after: token)
                 guard let seconds = Double(raw), seconds > 0, seconds.isFinite else {

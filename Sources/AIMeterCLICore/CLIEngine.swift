@@ -57,8 +57,14 @@ public enum CLIEngine {
         guard let command = parsed.command else {
             return failure(.unknownCommand(commandName), format: parsed.format, command: commandName)
         }
-        if let flag = parsed.unsupportedFlags.first {
+        if command.isReadOnly, let flag = parsed.unsupportedFlags.first {
             return failure(.unsupportedFlag(flag, command: command.rawValue), format: parsed.format, command: command.rawValue)
+        }
+        if command != .update, parsed.enabledState != nil {
+            return failure(
+                .invalidArgument("--enabled / --disabled は update コマンド専用のフラグです。"),
+                format: parsed.format, command: command.rawValue
+            )
         }
 
         var environment = environment
@@ -83,6 +89,24 @@ public enum CLIEngine {
                 result = context.runHistory()
             case .doctor:
                 result = context.runDoctor()
+            case .update:
+                guard parsed.positional.count == 2, parsed.positional[0] == "service" else {
+                    throw CLIError.invalidArgument("使い方: AIMeterCLI update service <サービスID> --enabled|--disabled")
+                }
+                guard let enabled = parsed.enabledState else {
+                    throw CLIError.invalidArgument("update には --enabled か --disabled のどちらかが必要です。")
+                }
+                result = try context.runUpdateService(
+                    serviceID: parsed.positional[1],
+                    enabled: enabled,
+                    dryRun: parsed.dryRun,
+                    idempotencyKey: parsed.idempotencyKey
+                )
+            case .verify:
+                guard parsed.positional.isEmpty else {
+                    throw CLIError.invalidArgument("verify には引数はありません。")
+                }
+                result = try context.runVerify()
             }
             switch parsed.format {
             case .json:

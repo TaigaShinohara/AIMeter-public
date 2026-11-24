@@ -2,7 +2,7 @@ import Foundation
 
 /// The CLI's own version. The GUI app's version lives in the app bundle and
 /// is not duplicated here; `status` labels this value as the CLI version.
-public let aimeterCLIVersion = "0.1.0"
+public let aimeterCLIVersion = "0.2.0"
 
 /// Version of the CLI input/output schema (`meta.schema_version`).
 public let aimeterCLISchemaVersion = 1
@@ -40,9 +40,22 @@ public struct CLIError: Error, Equatable {
     public static func unsupportedFlag(_ flag: String, command: String) -> CLIError {
         CLIError(
             code: "unsupported_flag",
-            message: "\(flag) は読み取り専用コマンド \(command) では未対応です。この CLI の全コマンドは読み取り専用のため、変更系フラグは受け付けません。",
+            message: "\(flag) は読み取り専用コマンド \(command) では未対応です。書き込み系フラグは update コマンドでのみ使えます。",
             exitCode: 1,
             details: .object([("flag", .string(flag)), ("command", .string(command))])
+        )
+    }
+
+    public static func idempotencyConflict(key: String, recordedServiceID: String, recordedEnabled: Bool) -> CLIError {
+        CLIError(
+            code: "idempotency_conflict",
+            message: "冪等キー \(key) は別の変更（\(recordedServiceID) を \(recordedEnabled ? "有効化" : "無効化")）に使用済みです。別のキーを指定してください。",
+            exitCode: 1,
+            details: .object([
+                ("idempotency_key", .string(key)),
+                ("recorded_service_id", .string(recordedServiceID)),
+                ("recorded_enabled", .bool(recordedEnabled))
+            ])
         )
     }
 

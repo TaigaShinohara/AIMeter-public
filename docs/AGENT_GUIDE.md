@@ -9,10 +9,10 @@ AI エージェント向けの使い方メモ。このファイルが、AIMeter 
 
 ## 到達レベル
 
-- レベル: **L1（読み取り可能）** — GitHub 配布版（direct）のみ。目標は L2。
+- レベル: **L2（操作可能）** — GitHub 配布版（direct）のみ。
 - 読み取り: 可（`status` / `list` / `get` / `history` / `doctor`）
-- 操作: 不可（書き込み系コマンドは未実装。変更は GUI で行う）
-- 検証: 部分的（`doctor` が前提条件を一覧で返す。`verify` は未実装）
+- 操作: 可（`update service <ID> --enabled/--disabled`。設定の書き込みのみ。その他の書き込み系は未実装）
+- 検証: 可（`verify` がデータ整合性と前提条件を合格 / 不合格で返す。`doctor` は前提条件の一覧）
 
 Mac App Store 版は対象外。データが App Sandbox コンテナと App Group 内にあり、独立した CLI プロセスからは entitlement の都合で到達できない。CLI は Store 版の保存場所を読みに行かず、`status` と `doctor` の出力でもその旨を明示する。
 
@@ -31,7 +31,10 @@ Mac App Store 版は対象外。データが App Sandbox コンテナと App Gro
 | `get <サービスID>` | 読み取り | 1 サービスの詳細。存在しない ID は終了コード 4 | `AIMeterCLI get openai` |
 | `history` | 読み取り | 最終更新の状態のみ（実行履歴は永続化されていないことを正直に返す） | `AIMeterCLI history` |
 | `doctor` | 読み取り | 前提条件の一覧点検（ファイル・設定・資格情報の確認可否） | `AIMeterCLI doctor` |
-| 書き込み系（`run` / `create` / `update` / `delete` / `verify`） | — | **未実装**。カタログに登録済みの操作も、CLI ではまだ実行できない | — |
+| `update service <ID> --enabled\|--disabled` | 書き込み | 連携サービスの有効 / 無効を設定へ書き込む。`--dry-run` と `--idempotency-key` に対応 | `AIMeterCLI update service gemini --disabled` |
+| `verify` | 読み取り（自己点検） | データ整合性と前提条件を合格 / 不合格で返す。不合格は終了コード 2 で理由と直し方を返す | `AIMeterCLI verify` |
+| `run refresh`（今すぐ更新） | — | **未実装**。収集器はアプリターゲット側にあり、Core への移行が前提になるため、この段では実装しない。URL スキーム等での代替もしない | — |
+| その他の書き込み系（`create` / `delete`、期間・上限・表示設定の変更） | — | **未実装**。カタログに登録済みの操作も、CLI ではまだ実行できない。変更は GUI で行う | — |
 
 サービスの安定 ID: 組み込みは `openai` / `gemini` / `antigravity`、カスタムサービスは設定に永続化された ID（例: `claude`、プリセット複製は `cursor_ab12` のような接尾辞つき）。再起動・並び替えで変わらない。
 
@@ -62,9 +65,18 @@ AIMeterCLI list            # サービスと残量の一覧
 AIMeterCLI get openai      # 気になるサービスの詳細
 ```
 
-### 2. 変更する
+### 2. 変更する（サービスの有効 / 無効のみ）
 
-書き込み系は未実装のため、変更は GUI で行うこと。将来の書き込み系は「ドライラン → 結果確認 → 本実行 → verify」の順を契約とする（現時点ではどの変更も CLI からは実行できない）。
+```
+AIMeterCLI update service gemini --disabled --dry-run   # 何が変わるか先に確認する
+AIMeterCLI update service gemini --disabled --idempotency-key <一意なキー>   # 本実行
+AIMeterCLI verify                                       # 変更後に整合性を確認する
+```
+
+- 書き込み先は GUI と同じ保存先（設定ドメイン `com.local.AIMeter` の各キーの値と、カスタムサービスの `customSubscriptionsJSON`）。CLI 用の別保存は作っていない。
+- 既にその状態のサービスへの実行は、成功として現状を返す（冪等）。同じ `--idempotency-key` の再実行は二重に処理せず、最初の結果を返す。別の変更に使ったキーの再利用は `idempotency_conflict`（終了コード 1）。
+- アプリ実行中の競合については、保存形式上、アプリ側が次に設定を読み取るタイミング（設定の再読み取り・再起動）で反映される。それまではアプリのメモリ上の状態が優先される場合がある。
+- それ以外の変更（期間・上限・表示設定、カスタムサービスの追加・削除、今すぐ更新）は CLI 未実装のため GUI で行うこと。
 
 ### 3. 失敗したときに調べる
 
@@ -92,7 +104,11 @@ AIMeterCLI doctor          # ファイル・設定・未設定の一覧点検
 | `--timeout <秒>` | 受け付ける（正の数の検証のみ。読み取りはローカルで即時に終わる） |
 | `--data-dir <パス>` | 対応（基準ディレクトリの差し替え） |
 | `--help` | 対応（全コマンド） |
-| `--dry-run` / `--yes` / `--idempotency-key` | **未対応**。読み取り専用コマンドでは意味を持たないため、黙って無視せず `unsupported_flag` エラー（終了コード 1）で明示する |
+| `--dry-run` | `update` のみ対応（実際には変えず、変更前後の状態を返す）。冪等キーの記録もしない |
+| `--idempotency-key <キー>` | `update` のみ対応（同じキーの再実行は最初の結果を返し、二重に処理しない。記録はデータディレクトリの `.ai_meter_cli_idempotency.json`） |
+| `--yes` | `update` で受け付ける（`update` は破壊的操作ではないため必須ではない） |
+| `--dry-run` / `--yes` / `--idempotency-key`（読み取りコマンドで指定） | **未対応**。読み取りコマンドでは意味を持たないため、黙って無視せず `unsupported_flag` エラー（終了コード 1）で明示する |
+| `--enabled` / `--disabled` | `update service` 専用（どちらか必須。同時指定は入力誤り） |
 
 ## エラーコード表
 
@@ -104,6 +120,9 @@ AIMeterCLI doctor          # ファイル・設定・未設定の一覧点検
 | `not_found` | 対象のサービスが無い | 4 | 不可 | `details.known_ids` と `list` で ID を確認する |
 | `permission_denied` | ファイルの読み取り権限不足 | 3 | 不可 | 人間に権限の確認を依頼する（`doctor` の結果として返る場合もある） |
 | `configuration_error` | 配布設定を解決できない | 2 | 不可 | アプリの配布形態と Info.plist を確認する |
+| `idempotency_conflict` | 冪等キーが別の変更に使用済み | 1 | 不可 | 別の冪等キーを指定する |
+| `verification_failed` | `verify` の自己点検で不整合を検出 | 2 | 不可 | `error.details.checks` の項目ごとの理由と `remedy`（直し方）に従う |
+| `custom_subscriptions_invalid` | カスタムサービス設定が壊れていて書き込めない | 2 | 不可 | 設定を失わないよう上書きはしない。アプリの設定画面で確認する |
 | `internal_error` | その他のアプリ側失敗 | 2 | 不可 | `doctor` で前提条件を確認する |
 
 ## 人間専用操作
@@ -126,4 +145,5 @@ AIMeterCLI doctor          # ファイル・設定・未設定の一覧点検
 - Mac App Store 版の保存場所（Sandbox コンテナ、App Group、Store 版の Keychain service）を CLI で読みに行くこと。対象は GitHub 配布版の保存場所だけ。
 - API キーなどの秘密情報を CLI の出力・引数・ログに含めること。`doctor` が返すのは有無と確認可否だけ。
 - 実在の利用量 JSON や API キーをテストのフィクスチャに使うこと。テストは一時ディレクトリの合成データと専用 UserDefaults スイートで分離されている。
-- 読み取りコマンドに副作用を期待すること。全コマンドは読み取り専用で、読むだけで状態は変わらない。
+- 読み取りコマンド（`status` / `list` / `get` / `history` / `doctor` / `verify`）に副作用を期待すること。これらは読むだけで状態は変わらない。状態を変えるのは `update` のみで、先に `--dry-run` で確認すること。
+- 収集の実行（今すぐ更新）を CLI で代替しようとすること。`run` は未実装で、URL スキーム等でアプリを起こして肩代わりするような経路も作らない。
