@@ -1,11 +1,11 @@
-# Mac App Store用の未完成プロジェクト
+# Mac App Store用プロジェクト
 
-このプロジェクトはストア版の構成を検討するための骨格です。コンパイルを停止していたビルドガード（`StoreBuildGuard.swift`）は、実署名・Sandboxでの実証が完了したため解除済みで、Store ターゲットはビルド可能になりました。ただし配布と審査提出は、別途、手順書04の承認ゲートに従って進めます。GitHub配布用のビルド手順とは独立しています。
+このプロジェクトは AIMeter の Mac App Store 版の構成です。コンパイルを停止していたビルドガード（`StoreBuildGuard.swift`）は、実署名・Sandbox での実証が完了したため解除済みです（PR #26）。Store ターゲットは Release 構成でビルドできることを確認済みです。配布と審査提出は、手順書04の承認ゲートに従って別途進めます。GitHub 配布用のビルド手順とは独立しています。
 
-本体とWidgetは既存のSwiftソースとローカルSwift Packageの共通モジュールを参照します。Bundle ID、Widget ID、Developer Team、App Groupは未確定です。`Configuration/Store.xcconfig` の空欄は値の確認が必要な設定名を示すだけで、Appleでの登録や権限の取得を意味しません。未追跡のローカル設定を使う場合は、既存ファイルや秘密情報をGitへ含めないでください。
+本体と Widget は既存の Swift ソースとローカル Swift Package の共通モジュールを参照します。識別子は確定し、Apple Developer へ登録済みです：本体 `com.taigashinohara.aimeter`、Widget `com.taigashinohara.aimeter.widget`、App Group `group.com.taigashinohara.aimeter`、Keychain Service `com.taigashinohara.aimeter`、URL Scheme `aimeter-store`。値は `Configuration/Store.xcconfig` で管理し、Team ID を含むローカル値は Git 管理外の `Store.local.xcconfig` に置きます。既存ファイルや秘密情報を Git へ含めないでください。
 
-権限ファイルにはsandbox、ユーザー選択の読取、ブックマーク、通信、App Groupの候補を記載しています。App Groupや識別子は未設定で、署名・プロビジョニングでの成立は未検証です。従来版とのKeychain、Widget、共有ファイル、更新処理の分離基盤はありますが、入力選択・安全な収集処理への接続が完成していません。これらをストア版で分離・検証する前にガードを除去しないでください。
+権限ファイルには sandbox、ユーザー選択の読取、ブックマーク、通信、App Group を記載しています。従来版との Keychain、Widget、共有ファイル、更新処理の分離は成立しており、実署名（TeamIdentifier 付き）・Sandbox・App Group 共有領域への Widget スナップショット保存は 2026-11-17 に実証済みです。読み取り元フォルダの選択は、同一性記録と対で保存する security-scoped bookmark で行い、アクセス時は二段照合でフォルダのすり替えを検知します。収集の接続は Codex / Claude / Copilot / Gemini の縦切りまで完了しています（設計は docs/STORE_CONNECTION_DESIGN.md）。
 
-本体とWidgetのビルド条件には `AIMETER_APP_STORE` を指定しています。ローカルSwift Packageの `AIMeterCore` へはXcodeのビルド設定が伝播しないため、`Package.swift` がマニフェスト評価時の環境変数 `AIMETER_APP_STORE=1` を検出した場合に限り、同じ define を `AIMeterCore` へ追加します（直接配布ビルドでは未設定のため挙動は変わりません）。実際のXcodeビルドでこの経路が意図どおり働くかは未検証です。本体とWidgetはそれぞれ起動時にStoreの配布設定を必須として検証します。URL schemeは本体Info.plistに登録しますが、実アプリでの起動先は未検証です。フラグの適用、展開後の両Info.plistとentitlementの一致、URL登録と実バイナリの検証を用意するまで、ガードを外せません。
+本体と Widget のビルド条件には `AIMETER_APP_STORE` を指定しています。ローカル Swift Package の `AIMeterCore` へは Xcode のビルド設定が伝播しないため、`Package.swift` がマニフェスト評価時の環境変数 `AIMETER_APP_STORE=1` を検出した場合に限り、同じ define を `AIMeterCore` へ追加します（直接配布ビルドでは未設定のため挙動は変わりません）。この経路は実際の Xcode ビルドで意図どおり働くことを確認済みです。本体と Widget はそれぞれ起動時に Store の配布設定を必須として検証します。
 
-App Store向けの署名、アーカイブ、実環境のWidgetKit、各連携の互換性、Appleの審査適合性は未検証です。登録・審査提出・公開はこの骨格の作成には含みません。
+未検証・残件は次のとおりです：Xcode Archive と App Store Connect への提出（手順書04、提出確定は本人の承認ゲート）、実環境での Widget 表示、OpenAI Keychain のダミー保存確認、Tests/StoreSandboxQA ハーネスによる範囲外アクセスの検証。登録・審査提出・公開は承認ゲートなしに進めません。
