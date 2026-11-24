@@ -448,7 +448,14 @@ public enum SharedStore {
     }
 
     public static func loadCustomSubscriptionsFromUserDefaults() -> [CustomSubscriptionConfig] {
-        let raw = UserDefaults.standard.string(forKey: "customSubscriptionsJSON") ?? "[]"
+        loadCustomSubscriptions(from: .standard)
+    }
+
+    /// Same decoding as the app, against an explicit defaults domain so
+    /// readers outside the app process (the CLI) resolve the app's domain
+    /// instead of their own.
+    public static func loadCustomSubscriptions(from defaults: UserDefaults) -> [CustomSubscriptionConfig] {
+        let raw = defaults.string(forKey: "customSubscriptionsJSON") ?? "[]"
         guard let data = raw.data(using: .utf8),
               let list = try? JSONDecoder().decode([CustomSubscriptionConfig].self, from: data) else {
             return []
